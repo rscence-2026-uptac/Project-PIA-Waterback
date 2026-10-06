@@ -1,7 +1,7 @@
 -- RLS test. Run after migration + 000 stub. Rolled back at the end.
 begin;
 set local role service_role;
-insert into barangays values ('rls1','n',0,0,1,1,'unknown','{}');
+insert into barangays (barangay_id,name,coverage_source) values ('rls1','n','unknown');
 insert into residents (barangay_id,phone,channel) values ('rls1','+639171234567','sms');
 do $$ begin
   insert into disruptions (started_at,cause,signal_level,status) values (now(),'repair',1,'predicted');
@@ -10,11 +10,12 @@ set local role anon;
 do $$
 declare t text; n int;
 begin
-  foreach t in array array['barangays','wsp_constants','rainfall_daily','readings','disruptions',
+  foreach t in array array['intakes','barangays','wsp_constants','rainfall_daily','readings','disruptions',
                            'sources','continuity_chains','allocations','event_log'] loop
     execute format('select count(*) from public.%I', t) into n;
   end loop;
-  assert (select count(*) from barangays) = 1, 'anon cannot see barangays row';
+  assert (select count(*) from barangays where barangay_id = 'rls1') = 1, 'anon cannot see barangays row';
+  assert (select count(*) from intakes) = 4, 'anon cannot read intakes';
   -- residents (PII): RLS enabled with NO anon/authenticated policy, and the test stub grants
   -- table SELECT, so the policy design yields 0 rows (not an error). service_role sees the row.
   assert (select count(*) from residents) = 0, 'anon can read residents (PII leak)';
@@ -24,7 +25,7 @@ begin
   exception when insufficient_privilege then null;
   end;
   begin
-    insert into barangays values ('rls2','n',0,0,1,1,'unknown','{}');
+    insert into barangays (barangay_id,name,coverage_source) values ('rls2','n','unknown');
     raise exception 'anon insert succeeded';
   exception when insufficient_privilege then null;  -- RLS violation (42501)
   end;
@@ -34,7 +35,7 @@ begin
 end $$;
 reset role;
 set local role service_role;
-insert into barangays values ('rls3','n',0,0,1,1,'unknown','{}');
+insert into barangays (barangay_id,name,coverage_source) values ('rls3','n','unknown');
 reset role;
 set local role authenticated;
 do $$ begin

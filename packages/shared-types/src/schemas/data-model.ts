@@ -4,14 +4,28 @@ import { z } from "zod";
 export const Reading = z.object({
   id: z.string().uuid(),
   recorded_at: z.string().datetime(),
-  barangay_id: z.string(),
-  turbidity_ntu: z.number().nonnegative(),       // CWD 2022 WSP: >500 NTU forces shutdown
+  intake_id: z.string(),
+  turbidity_ntu: z.number().nonnegative(),       // CWD 2022 WSP: >= 500 NTU temporary shut-off
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
-  reservoir_pct: z.number().min(0).max(100),      // % of 340 m³ usable capacity, WSP
-  clarifier_inflow_lps: z.number().nonnegative(), // rated capacity 46 L/s, WSP
+  reservoir_pct: z.number().min(0).max(100).nullable(), // % of 340 m³ usable capacity, WSP
+  clarifier_inflow_lps: z.number().nonnegative().nullable(), // rated capacity 46.3 L/s (4,000 CMD), WSP
   source: z.enum(["operator", "sensor"]),
 });
 export type Reading = z.infer<typeof Reading>;
+
+export const INTAKE_IDS = ["kulador", "masacpasac", "caramayon_1", "caramayon_2"] as const;
+
+// CWD 2022 WSP: the four water intakes (docs/wsp_findings.md)
+export const Intake = z.object({
+  intake_id: z.string(),
+  name: z.string(),
+  type: z.enum(["surface", "spring", "deep_well"]),
+  rated_capacity_lps: z.number().nonnegative().nullable(),
+  treated_at_kulador: z.boolean(),
+  power_dependent: z.boolean(),
+  wsp_page: z.string(),
+});
+export type Intake = z.infer<typeof Intake>;
 
 export const Disruption = z.object({
   id: z.string().uuid(),
@@ -78,10 +92,12 @@ export type EventLog = z.infer<typeof EventLog>;
 export const Barangay = z.object({
   barangay_id: z.string(),
   name: z.string(),
-  lat: z.number(),
-  lng: z.number(),
-  piped_households: z.number().int().nonnegative(),
-  unpiped_households: z.number().int().nonnegative(), // estimate — see spec 03
+  zone: z.number().int().min(1).max(10).nullable(),
+  service_level: z.enum(["level_iii", "level_i", "unserved"]).default("level_iii"),
+  lat: z.number().nullable(),
+  lng: z.number().nullable(),
+  piped_households: z.number().int().nonnegative().nullable(),
+  unpiped_households: z.number().int().nonnegative().nullable(), // estimate — see spec 03
   coverage_source: z.enum(["cwd_service_map", "estimate", "unknown"]),
   critical_facilities: z.array(z.enum(["health_station", "school", "evacuation_center"])).default([]),
 });

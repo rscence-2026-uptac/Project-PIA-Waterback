@@ -6,7 +6,7 @@ export const TurbidityFeatures = z.object({
   turbidity_slope_per_hr: z.number(),       // over the last 6 readings
   rain_24h_mm: z.number(),                   // Open-Meteo
   rain_72h_mm: z.number(),
-  clarifier_utilization: z.number().min(0).max(2), // inflow ÷ 46 L/s rated capacity
+  clarifier_utilization: z.number().min(0).max(2), // inflow ÷ 46.3 L/s rated capacity
 });
 export type TurbidityFeatures = z.infer<typeof TurbidityFeatures>;
 
@@ -20,7 +20,7 @@ export const DroughtFeatures = z.object({
 export type DroughtFeatures = z.infer<typeof DroughtFeatures>;
 
 export const PredictorOutput = z.object({
-  barangay_id: z.string(),
+  scope: z.literal("system"), // blended network -> one system-wide prediction; spec 03 fans out to barangays
   p_turbidity: z.number().min(0).max(1),
   p_drought: z.number().min(0).max(1),
   signal_level: z.number().int().min(0).max(4), // max of the two levels below
