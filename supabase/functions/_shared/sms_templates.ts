@@ -46,7 +46,7 @@ export const SMS_ROWS: Record<SmsKey, Row> = {
   },
   // --- BACKEND-ADDED ---
   "sms.water_off_no_store": { // notify with store_water_advice = false (no "Store NL" line)
-    english: "PIA WATERBACK: Water OFF in {barangay} since {since}. {cause}. Back {window}, likely {likely}. Backup: {source}. Reply SRC for more.",
+    english: "PIA WATERBACK: Water OFF in {barangay} since {since}. {cause}. Back {window}, likely {likely}. Backup: {source}. Reply SRC.",
     filipino: "PIA WATERBACK: Walang tubig sa {barangay} mula {since}. {cause}. Babalik {window}, malamang {likely}. Reserba: {source}. Reply SRC.",
     waray: "PIA WATERBACK: Waray tubig ha {barangay} tikang {since}. {cause}. Mabalik {window}, posible {likely}. Reserba: {source}. Reply SRC.",
   },
@@ -154,5 +154,5 @@ export const WORST_CASE: Record<string, string> = {
   window: "11AM-2PM", likely: "12:30PM", litres: "60",
   list: "A) Faucet, 6min, free. B) Bayani Refill, 9min, P25/20L. D) LGU truck 2PM",
   time: "10:00AM", diff: "25 min early", captain: "Liza", partner: "Bayani Refilling", letter: "B", n: "212",
-  source: "Bayani Refilling Station", keyword: "OPEN",
+  source: "Bayani Refilling 2", keyword: "OPEN",
 };

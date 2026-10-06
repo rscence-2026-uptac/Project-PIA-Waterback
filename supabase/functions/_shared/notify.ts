@@ -11,7 +11,15 @@ import { sendSms } from "./sms_send.ts";
 import type { FetchFn, SmsConfig, SmsMessage, SmsReport } from "./sms_send.ts";
 
 export const MAX_PAYLOADS = 200;
-const SOURCE_NAME_MAX = 24; // keeps the no-store variant inside one 160-char segment
+const SOURCE_NAME_MAX = 18; // keeps the no-store variant inside one 160-char segment
+
+/** Cut at a word boundary so a long station name never overflows the segment. */
+export function shortSource(name: string): string {
+  const n = name.trim();
+  if (n.length <= SOURCE_NAME_MAX) return n;
+  const cut = n.slice(0, SOURCE_NAME_MAX).replace(/\s+\S*$/, "").trim();
+  return cut || n.slice(0, SOURCE_NAME_MAX);
+}
 
 /** The single SMS body for one resident. Exported for tests. */
 export function buildNotifySms(
@@ -27,7 +35,7 @@ export function buildNotifySms(
     window: fmtWindow(disruption.window_start, disruption.window_end),
     likely: fmtClock(disruption.likely_at, "later"),
     litres: SMS_STORE_LITRES,
-    source: p.nearest_source_name.slice(0, SOURCE_NAME_MAX).trim(),
+    source: shortSource(p.nearest_source_name),
   };
   return renderSms(p.store_water_advice ? "sms.water_off" : "sms.water_off_no_store", lang, vars);
 }
