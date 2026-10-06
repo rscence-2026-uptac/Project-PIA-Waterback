@@ -10,7 +10,7 @@ set local role anon;
 do $$
 declare t text; n int;
 begin
-  foreach t in array array['intakes','barangays','wsp_constants','rainfall_daily','readings','disruptions',
+  foreach t in array array['intakes','barangays','wsp_constants','rainfall_daily','rainfall_hourly','rain_forecast_hourly','readings','disruptions',
                            'sources','continuity_chains','allocations','event_log'] loop
     execute format('select count(*) from public.%I', t) into n;
   end loop;

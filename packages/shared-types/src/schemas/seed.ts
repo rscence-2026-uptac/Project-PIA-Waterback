@@ -9,6 +9,7 @@ export const ReadingSeedRow = z.object({
   reservoir_pct: z.number().min(0).max(100).nullable(),
   clarifier_inflow_lps: z.number().nonnegative().nullable(),
   source: z.literal("operator"), // seed rows are explicitly labeled simulated, not sensor-sourced
+  is_simulated: z.literal(true), // simulated seed data, never CWD telemetry (spec 01)
 });
 export type ReadingSeedRow = z.infer<typeof ReadingSeedRow>;
 

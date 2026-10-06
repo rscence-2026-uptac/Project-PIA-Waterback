@@ -10,6 +10,7 @@ export const Reading = z.object({
   reservoir_pct: z.number().min(0).max(100).nullable(), // % of 340 m³ usable capacity, WSP
   clarifier_inflow_lps: z.number().nonnegative().nullable(), // rated capacity 46.3 L/s (4,000 CMD), WSP
   source: z.enum(["operator", "sensor"]),
+  is_simulated: z.boolean().default(false), // true = seeded/simulated, never real CWD telemetry (spec 01)
 });
 export type Reading = z.infer<typeof Reading>;
 
@@ -131,3 +132,18 @@ export const RainfallDaily = z.object({
   fetched_at: z.string().datetime().optional(),
 });
 export type RainfallDaily = z.infer<typeof RainfallDaily>;
+
+export const RainfallHourly = z.object({
+  ts: z.string().datetime({ offset: true }),
+  precipitation_mm: z.number().nonnegative(),
+  source: z.string().default("open-meteo"),
+});
+export type RainfallHourly = z.infer<typeof RainfallHourly>;
+
+export const RainForecastHourly = z.object({ // forecast_rain_48h_mm feature (spec 02 v2); seed/rain_forecast_hourly.sql
+  ts: z.string().datetime({ offset: true }),
+  precipitation_mm: z.number().nonnegative(),
+  source: z.string().default("open-meteo-historical-forecast"),
+  fetched_at: z.string().datetime().optional(),
+});
+export type RainForecastHourly = z.infer<typeof RainForecastHourly>;

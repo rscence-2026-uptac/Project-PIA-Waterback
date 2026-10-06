@@ -37,18 +37,24 @@ const cases: [string, z.ZodTypeAny, unknown, unknown][] = [
   ["RainfallDaily", T.RainfallDaily,
     { date: "2026-07-01", precipitation_mm: 3.2, source: "open-meteo", fetched_at: TS },
     { date: "2026-07-01", precipitation_mm: -1, source: "open-meteo", fetched_at: TS }],
+  ["RainfallHourly", T.RainfallHourly,
+    { ts: "2026-07-01T00:00:00+08:00", precipitation_mm: 0.4, source: "open-meteo" },
+    { ts: "2026-07-01T00:00:00+08:00", precipitation_mm: -0.1, source: "open-meteo" }],
+  ["RainForecastHourly", T.RainForecastHourly,
+    { ts: "2026-07-01T00:00:00+08:00", precipitation_mm: 0.4, source: "open-meteo-historical-forecast" },
+    { ts: "2026-07-01T00:00:00+08:00", precipitation_mm: -0.1, source: "open-meteo-historical-forecast" }],
   ["ReadingSeedRow", T.ReadingSeedRow,
-    { recorded_at: TS, intake_id: "kulador", turbidity_ntu: 4, plant_status: "normal", reservoir_pct: 80, clarifier_inflow_lps: 40, source: "operator" },
-    { recorded_at: TS, intake_id: "kulador", turbidity_ntu: 4, plant_status: "normal", reservoir_pct: 80, clarifier_inflow_lps: 40, source: "sensor" }],
+    { recorded_at: TS, intake_id: "kulador", turbidity_ntu: 4, plant_status: "normal", reservoir_pct: 80, clarifier_inflow_lps: 40, source: "operator", is_simulated: true },
+    { recorded_at: TS, intake_id: "kulador", turbidity_ntu: 4, plant_status: "normal", reservoir_pct: 80, clarifier_inflow_lps: 40, source: "operator", is_simulated: false }],
   ["OpenMeteoPullConfig", T.OpenMeteoPullConfig,
     { latitude: 11.7, longitude: 124.8, start_date: "2026-06-01", end_date: "2026-07-01", daily: ["precipitation_sum"] },
     { latitude: 11.7, longitude: 124.8, start_date: "2026-06-01", end_date: "2026-07-01", daily: ["temperature"] }],
   ["TurbidityFeatures", T.TurbidityFeatures,
-    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, clarifier_utilization: 1 },
-    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, clarifier_utilization: 2.5 }],
+    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: 12.5 },
+    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: -1 }],
   ["DroughtFeatures", T.DroughtFeatures,
-    { reservoir_pct: 50, reservoir_trend_pct_per_day: -1, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 3 },
-    { reservoir_pct: 50, reservoir_trend_pct_per_day: -1, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 1.5 }],
+    { reservoir_pct: 50, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 3 },
+    { reservoir_pct: 50, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 1.5 }],
   ["PredictorOutput", T.PredictorOutput,
     { scope: "system", p_turbidity: 0.5, p_drought: 0.1, signal_level: 2, turbidity_level: 2, drought_level: 0, computed_at: TS, fallback_used: false },
     { scope: "system", p_turbidity: 1.5, p_drought: 0.1, signal_level: 2, turbidity_level: 2, drought_level: 0, computed_at: TS, fallback_used: false }],
@@ -144,9 +150,23 @@ describe("contract edge cases", () => {
     const { intake_id: _i, ...noIntake } = reading;
     expect(T.Reading.safeParse(noIntake).success).toBe(false);
   });
+  it("is_simulated flag", () => {
+    const { is_simulated: _s, ...noFlag } = reading as Record<string, unknown>;
+    expect(T.Reading.parse(noFlag).is_simulated).toBe(false);
+    const seed = { recorded_at: TS, intake_id: "kulador", turbidity_ntu: 4, plant_status: "normal", reservoir_pct: 80, clarifier_inflow_lps: 40, source: "operator" };
+    expect(T.ReadingSeedRow.safeParse({ ...seed, is_simulated: true }).success).toBe(true);
+    expect(T.ReadingSeedRow.safeParse({ ...seed, is_simulated: false }).success).toBe(false);
+    expect(T.ReadingSeedRow.safeParse(seed).success).toBe(false);
+  });
   it("PredictorOutput scope", () => {
     const po = { scope: "system", p_turbidity: 0.5, p_drought: 0.1, signal_level: 2, turbidity_level: 2, drought_level: 0, computed_at: TS, fallback_used: false };
     expect(T.PredictorOutput.safeParse(po).success).toBe(true);
     expect(T.PredictorOutput.safeParse({ ...po, scope: "barangay" }).success).toBe(false);
+  });
+  it("PredictorOutput forecast_source is optional and constrained", () => {
+    const po = { scope: "system", p_turbidity: 0.5, p_drought: 0.1, signal_level: 2, turbidity_level: 2, drought_level: 0, computed_at: TS, fallback_used: false };
+    for (const f of ["seeded", "live", "missing"]) expect(T.PredictorOutput.safeParse({ ...po, forecast_source: f }).success).toBe(true);
+    expect(T.PredictorOutput.safeParse(po).success).toBe(true); // omitted: still valid
+    expect(T.PredictorOutput.safeParse({ ...po, forecast_source: "guess" }).success).toBe(false);
   });
 });

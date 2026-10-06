@@ -1,7 +1,7 @@
 # Spec: Data model
 
 ## What it does
-Defines the eleven core Postgres tables — `intakes`, `barangays`, `residents`, `wsp_constants`, `rainfall_daily`, `readings`, `disruptions`, `sources`, `continuity_chains`, `allocations`, `event_log` — that every other spec reads from or writes to, plus the RLS posture used for the demo. Every other spec's data contract is a view onto these tables, so this one ships first. The hierarchy is LGU → Barangay → Resident: the barangay is the unit everything is computed, ranked and allocated per, and the LGU stays implicit (single LGU, Catbalogan City). `residents` holds PII (phone numbers) and is readable by `service_role` only. Readings are taken at water intakes and the plant, not per barangay (CWD 2022 WSP pp.43–47), so `readings.intake_id` references `intakes`. The network is blended: all intakes feed the single Kulador plant and one distribution network (WSP pp.12, 15), so a Kulador problem hits the whole service area. Deep wells (Tumalistis, Executive, Payao, Lagundi; WSP pp.13–14) are out of scope. PostGIS is not used: barangay centroid lat/lng suffices (spec 03 out-of-scope). Every `barangay_id` column in `sources`, `continuity_chains`, `allocations`, `residents` is a FK to `barangays(barangay_id)`. `allocations.officer_id` is text holding a Supabase Auth user id; LGU seed accounts are created separately, not in this migration.
+Defines the thirteen core Postgres tables — `intakes`, `barangays`, `residents`, `wsp_constants`, `rainfall_daily`, `rainfall_hourly`, `rain_forecast_hourly`, `readings`, `disruptions`, `sources`, `continuity_chains`, `allocations`, `event_log` — that every other spec reads from or writes to, plus the RLS posture used for the demo. Every other spec's data contract is a view onto these tables, so this one ships first. The hierarchy is LGU → Barangay → Resident: the barangay is the unit everything is computed, ranked and allocated per, and the LGU stays implicit (single LGU, Catbalogan City). `residents` holds PII (phone numbers) and is readable by `service_role` only. Readings are taken at water intakes and the plant, not per barangay (CWD 2022 WSP pp.43–47), so `readings.intake_id` references `intakes`. The network is blended: all intakes feed the single Kulador plant and one distribution network (WSP pp.12, 15), so a Kulador problem hits the whole service area. Deep wells (Tumalistis, Executive, Payao, Lagundi; WSP pp.13–14) are out of scope. PostGIS is not used: barangay centroid lat/lng suffices (spec 03 out-of-scope). Every `barangay_id` column in `sources`, `continuity_chains`, `allocations`, `residents` is a FK to `barangays(barangay_id)`. `allocations.officer_id` is text holding a Supabase Auth user id; LGU seed accounts are created separately, not in this migration.
 
 ## Data contract
 ```ts
@@ -55,6 +55,19 @@ export const RainfallDaily = z.object({
   fetched_at: z.string().datetime().optional(),
 });
 
+export const RainfallHourly = z.object({  // predictor rain_24h/72h/14d/30d features (spec 02); seed/rainfall_hourly.sql
+  ts: z.string().datetime({ offset: true }),
+  precipitation_mm: z.number().nonnegative(),
+  source: z.string().default("open-meteo"),
+});
+
+export const RainForecastHourly = z.object({  // forecast_rain_48h_mm feature (spec 02 v2); seed/rain_forecast_hourly.sql
+  ts: z.string().datetime({ offset: true }),
+  precipitation_mm: z.number().nonnegative(),
+  source: z.string().default("open-meteo-historical-forecast"),
+  fetched_at: z.string().datetime().optional(),
+});
+
 export const Reading = z.object({
   id: z.string().uuid(),
   recorded_at: z.string().datetime(),
@@ -64,6 +77,7 @@ export const Reading = z.object({
   reservoir_pct: z.number().min(0).max(100).nullable(),      // % of 340 m³ usable (WSP p.13); only Kulador rows
   clarifier_inflow_lps: z.number().nonnegative().nullable(), // vs 46.3 L/s clarifier (WSP p.16); only Kulador rows
   source: z.enum(["operator", "sensor"]),
+  is_simulated: z.boolean().default(false), // true = seeded/simulated data, never real CWD telemetry (spec 01)
 });
 
 export const Disruption = z.object({
@@ -124,7 +138,7 @@ export const EventLog = z.object({
 ```
 
 ## Acceptance criteria
-- [ ] All eleven tables created via the Supabase migrations `supabase/migrations/20261006000001_init.sql` and `20261006000002_intakes_zones.sql` (Supabase CLI requires timestamp prefixes), applies cleanly on a fresh project
+- [ ] All thirteen tables created via the Supabase migrations `supabase/migrations/20261006000001_init.sql`, `20261006000002_intakes_zones.sql`, `20261006000004_rainfall_hourly.sql` and `20261006000005_rain_forecast_hourly.sql` (Supabase CLI requires timestamp prefixes), applies cleanly on a fresh project
 - [ ] Seeded `intakes` = 4, `barangays` = 26 (4 `level_i`); unknown zone, coordinates and household counts are NULL, never guessed
 - [ ] Inserting one seed row per table from `01-seed-data.md` succeeds with no constraint errors
 - [ ] RLS: read access open to the anon key on every table except `residents` (demo simplicity), writes restricted to the `service_role` used by Edge Functions — documented as a hackathon-scope decision, not a production security posture
@@ -145,3 +159,6 @@ export const EventLog = z.object({
 2026-10-06: added wsp_constants, rainfall_daily; dropped PostGIS (pending Dev B okay)
 2026-10-06: hierarchy is LGU → Barangay → Resident; puroks removed, barangays + residents added (pending Dev B okay)
 2026-10-06: aligned with CWD 2022 WSP (see docs/wsp_findings.md)
+2026-10-06: added readings.is_simulated (migration 20261006000003) so the UI can label seed data as simulated
+2026-10-06: added rainfall_hourly (migration 20261006000004) — hourly rain for the predictor's 24h/72h windows; twelve tables
+2026-10-06: added rain_forecast_hourly (migration 20261006000005) — hourly rain forecast (Open-Meteo historical-forecast archive) so forecast_rain_48h_mm is deterministic and offline-safe for the demo; thirteen tables

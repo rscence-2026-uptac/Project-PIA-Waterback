@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drops & recreates a local test DB (default pia_dev) and runs stub -> all migrations -> seeds -> smoke -> RLS tests.
+# Drops & recreates a local test DB (default pia_dev) and runs stub -> all migrations -> seeds -> smoke -> RLS -> seed checks.
 # Override with PGHOST/PGPORT/PGUSER/PGDATABASE. Touches only $PGDATABASE (roles are created if missing).
 set -euo pipefail
 export PGHOST="${PGHOST:-localhost}" PGPORT="${PGPORT:-5432}"
@@ -12,7 +12,7 @@ for f in $(ls supabase/migrations/*.sql | sort); do files+=("$f"); done
 # seed files in the order given by [db.seed] sql_paths in supabase/config.toml
 while IFS= read -r f; do files+=("supabase/${f#./}"); done < <(
   grep -E '^sql_paths' supabase/config.toml | grep -oE '"[^"]+"' | tr -d '"')
-files+=(supabase/tests/001_smoke.sql supabase/tests/002_rls.sql)
+files+=(supabase/tests/001_smoke.sql supabase/tests/002_rls.sql supabase/tests/003_seed_checks.sql)
 for f in "${files[@]}"; do
   echo "== $f"; psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
 done

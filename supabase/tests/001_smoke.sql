@@ -27,7 +27,7 @@ insert into event_log (disruption_id,event_type,actor,payload_json)
 do $$
 declare t text; n int;
 begin
-  foreach t in array array['intakes','barangays','residents','wsp_constants','rainfall_daily','readings','disruptions',
+  foreach t in array array['intakes','barangays','residents','wsp_constants','rainfall_daily','rainfall_hourly','rain_forecast_hourly','readings','disruptions',
                            'sources','continuity_chains','allocations','event_log'] loop
     execute format('select count(*) from %I where true', t) into n;
     assert n >= 1, format('table %s empty', t);
@@ -45,7 +45,7 @@ begin
        = array['predicted','confirmed','deployed','notified','resident_confirmed','resolved'],
        'event_type order';
   assert (select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'
-          and relrowsecurity) = 11, 'RLS not enabled on 11 tables';
+          and relrowsecurity) = 13, 'RLS not enabled on 13 tables';
 end $$;
 
 -- constraint violations must fail
