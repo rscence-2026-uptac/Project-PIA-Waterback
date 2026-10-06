@@ -1,6 +1,8 @@
-# Tubig Patas — final merged concept for Water Security
+# PIA WaterBack — final merged concept for Water Security
 
 Oct 6, 2026 · @Rolf Genree
+
+> **Name (2026-10-06):** the merged product is called **PIA WaterBack**. "Tubig Patas" below refers only to the earlier draft that was merged in. The wireframes PDF still says Tubig Patas; screens use PIA WaterBack.
 
 ## Verdict
 
@@ -18,13 +20,13 @@ Yes — they solve different halves of the same problem, and merging them is str
 | Fairness/anti-abuse | Not addressed | Hash-chained ledger for emergency water credits | Keep, but scope down to "an auditable allocation log," not a full credit economy — see Open risks |
 | Narrative hook for judges | Strong: Antiao River, a named SSU engineer, a national DENR quote, a comparable 2026 crisis elsewhere | Weak: generic Region VIII framing, no single named local case | Take PIA's narrative almost verbatim — it is the single best asset either draft has for Relevance & Impact (25% L1) |
 
-## Merged concept: Tubig Patas (a PIA system for the Antiao River basin)
+## Merged concept: PIA WaterBack (a PIA system for the Antiao River basin)
 
 Catbalogan draws nearly all its treated water from one river — the Antiao, its only river, [confirmed as Catbalogan's sole river basin, now under a 2023–2027 DENR-led, 98-partner rehabilitation program](https://alpha.pna.gov.ph/articles/1210327). That single-source dependency is the system's real vulnerability, and it fails in two distinct ways: heavy rain pushes turbidity past what the treatment plant can process (a sudden interruption), or a dry spell drops the source level over weeks (a prolonged shortage and rationing). PIA Water-Back's attributed claim that "when two major vulnerabilities occur at the same time — power interruption and extremely turbid river water — the remaining sources cannot adequately meet the city's demand" (credited to SSU's Ronald Orale) could **not be independently verified** in this pass — treat it as **unverified** until someone on the team can point to where it was said, and cite it only with that caveat, or drop the named attribution and keep the mechanism (which the WSP data does support independently).
 
 This is not an isolated or invented crisis. DENR Secretary Juan Miguel Cuna used the term "water bankruptcy" — consumption outpacing nature's ability to replenish the supply — describing it as a serious, nationwide structural problem at the **2026 World Water Day event (confirmed, March 2026)**. And it is not hypothetical elsewhere in the region: Puerto Galera, Oriental Mindoro was placed under a **state of calamity on 11 barangays due to water shortage, confirmed mid-to-late June 2026**, with the town still appealing to the national government for help as of **July 2026**. Catbalogan's single-river dependency is the same structural risk, just not yet declared a calamity.
 
-**The merged pitch:** software cannot add water to the Antiao River. What it can do is close the gap between water existing somewhere and a specific household actually getting it — by diagnosing *why* access failed, telling the LGU *who* is affected (including the households the piped network never reached), helping the LGU *decide* fairly who gets priority, and *reaching* every resident regardless of whether they have an app, a smartphone, or a signal. Tubig Patas is that layer: a Prevention–Intervention–Action system built around Catbalogan's real monitoring data, with an equity layer PIA Water-Back's piped-customers-only version doesn't yet have.
+**The merged pitch:** software cannot add water to the Antiao River. What it can do is close the gap between water existing somewhere and a specific household actually getting it — by diagnosing *why* access failed, telling the LGU *who* is affected (including the households the piped network never reached), helping the LGU *decide* fairly who gets priority, and *reaching* every resident regardless of whether they have an app, a smartphone, or a signal. PIA WaterBack is that layer: a Prevention–Intervention–Action system built around Catbalogan's real monitoring data, with the equity layer the original piped-customers-only PIA Water-Back draft didn't have.
 
 ## Final users
 

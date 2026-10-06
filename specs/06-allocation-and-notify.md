@@ -71,3 +71,8 @@ export const EventLogEntry = z.object({
 - specs/04-continuity-ranking.md
 - specs/05-operator-pwa.md
 - specs/08-ui-ux-guidelines.md
+
+## Open questions (for Dev A, see `docs/dev-b-handoff.md`)
+- Time window, likely time, next update, heads-up time and restored time have no column yet (handoff #3)
+- The app calls `confirmAllocation` / `deployResponse` / `notifyResidents` in `apps/web/src/actions/lgu.ts`; each needs an Edge Function (handoff #4)
+- `officer_id` is a mock until LGU accounts exist (handoff #8)

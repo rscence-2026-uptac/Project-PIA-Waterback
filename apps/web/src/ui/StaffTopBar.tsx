@@ -9,10 +9,12 @@ export function StaffTopBar({ org, tabs, right }: { org: string; tabs?: ReactNod
   return (
     <header className="border-b border-haze bg-foam">
       <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-x-6 gap-y-2 px-8 py-3">
-        <span className="flex items-center gap-2">
-          <DropMark size={22} />
-          <span className="font-display text-[18px]">{t("app.name")}</span>
-          <span className="text-[15px] text-ink-soft">{org}</span>
+        <span className="flex items-center gap-2.5">
+          <DropMark size={30} />
+          <span className="flex flex-col leading-tight">
+            <span className="font-display text-[18px]">{t("app.name")}</span>
+            <span className="text-[13px] text-ink-soft">{org}</span>
+          </span>
         </span>
         {tabs && <nav className="flex flex-wrap items-center gap-1 text-[15px]">{tabs}</nav>}
         {right && <span className="ml-auto text-[15px] text-ink-soft">{right}</span>}

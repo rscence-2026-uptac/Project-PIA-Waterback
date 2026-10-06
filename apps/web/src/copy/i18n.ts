@@ -1,5 +1,5 @@
 // SPEC: 08 — read copy from the one table, in the language saved on this phone.
-import { useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 import type { Language } from "../contracts/spec08";
 import { COPY_BY_KEY, type CopyKeyName } from "./strings";
 import { readSetting, subscribeSetting, writeSetting } from "../lib/settings";
@@ -31,9 +31,16 @@ export function translate(language: Language, key: CopyKeyName, vars?: Vars): st
   return text;
 }
 
+/**
+ * Set by <FixedLanguage> for screens that ignore the phone's language choice.
+ * LGU / CDRRMO screens are English only; resident and captain screens keep the choice.
+ */
+export const FixedLanguageContext = createContext<Language | null>(null);
+
 /** Returns t(key, vars) bound to the current language; re-renders when it changes. */
 export function useCopy() {
-  const language = useSyncExternalStore(subscribeSetting, getLanguage, getLanguage);
+  const saved = useSyncExternalStore(subscribeSetting, getLanguage, getLanguage);
+  const language = useContext(FixedLanguageContext) ?? saved;
   const t = (key: CopyKeyName, vars?: Vars) => translate(language, key, vars);
   return { t, language, languages: LANGUAGES };
 }

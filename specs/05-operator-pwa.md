@@ -45,3 +45,8 @@ export const BarangayStatusView = z.object({
 ## Depends on
 - specs/00-data-model.md
 - specs/08-ui-ux-guidelines.md
+
+## Open questions (for Dev A, see `docs/dev-b-handoff.md`)
+- Plant-wide intake readings vs. the `readings.barangay_id` FK: the app sends `barangay_id: "antiao-intake"` for now (handoff #1)
+- Treated turbidity is on the operator form but not in this contract or `readings` (handoff #2)
+- `z.record(z.unknown())` above is `z.record(z.string(), z.unknown())` in zod 4, which the web app uses

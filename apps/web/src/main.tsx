@@ -13,6 +13,7 @@ import { SettingsScreen } from "./screens/resident/SettingsScreen";
 import { CaptainScreen } from "./screens/captain/CaptainScreen";
 import { OperatorScreen } from "./screens/operator/OperatorScreen";
 import { AdminScreen } from "./screens/admin/AdminScreen";
+import { FixedLanguage } from "./copy/FixedLanguage";
 import { AllocationScreen } from "./screens/lgu/AllocationScreen";
 import { EventRecordScreen } from "./screens/lgu/EventRecordScreen";
 
@@ -31,9 +32,10 @@ const router = createBrowserRouter([
   },
   { path: "/captain", element: <CaptainScreen /> },
   { path: "/operator", element: <OperatorScreen /> },
-  { path: "/lgu", element: <AllocationScreen /> },
-  { path: "/lgu/event", element: <EventRecordScreen /> },
-  { path: "/admin", element: <AdminScreen /> },
+  // LGU / CDRRMO screens are English only; residents and captains keep the language choice.
+  { path: "/lgu", element: <FixedLanguage language="english"><AllocationScreen /></FixedLanguage> },
+  { path: "/lgu/event", element: <FixedLanguage language="english"><EventRecordScreen /></FixedLanguage> },
+  { path: "/admin", element: <FixedLanguage language="english"><AdminScreen /></FixedLanguage> },
 ]);
 
 createRoot(document.getElementById("root")!).render(

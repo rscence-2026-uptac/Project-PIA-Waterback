@@ -18,8 +18,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Tubig Patas',
-        short_name: 'Tubig Patas',
+        name: 'PIA WaterBack',
+        short_name: 'WaterBack',
         description: 'Know when the water comes back, and where to get it until then.',
         lang: 'en',
         start_url: '/',

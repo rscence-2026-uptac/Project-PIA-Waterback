@@ -8,23 +8,19 @@ export interface CachedStatus {
   snapshot: BarangaySnapshot;
 }
 
-class TubigPatasDB extends Dexie {
+class WaterBackDB extends Dexie {
   queue!: Table<OfflineQueueItem, string>;
   barangayStatus!: Table<CachedStatus, string>;
 
   constructor() {
-    super("tubig-patas");
+    // Renamed from "tubig-patas" with the app; a fresh database, so no purok-era versions to migrate.
+    super("pia-waterback");
     // Booleans can't be indexed in IndexedDB, so `synced` is filtered, not indexed.
     this.version(1).stores({
       queue: "local_id, kind, queued_at",
-      statusCache: "purok_id",
-    });
-    // v2: status is barangay-level now; the old purok cache is dropped, queued readings are kept.
-    this.version(2).stores({
-      statusCache: null,
       barangayStatus: "barangay_id",
     });
   }
 }
 
-export const db = new TubigPatasDB();
+export const db = new WaterBackDB();

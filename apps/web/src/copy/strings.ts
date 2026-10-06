@@ -1,19 +1,19 @@
 // SPEC: 08 — the one trilingual CopyKey table. Every user-facing string lives here.
 // Rows are [key, english, filipino, waray]. {placeholders} are filled by t().
 //
-// REVIEW: every Waray string and every Filipino string is a draft by the dev team,
+// REVIEW: every Waray and Filipino string for resident/captain screens is a draft by the dev team,
 // not a native-speaker review. Spec 08 says flag, don't guess: they're all listed in
 // NEEDS_REVIEW below until a fluent teammate checks them. English is the default
-// language until then.
+// language until then. LGU screens (lgu.*, record.*, event.*, alloc.*) render English only (spec 08 Decisions).
 import { CopyKey } from "../contracts/spec08";
 
 const ROWS = [
   // App shell
-  ["app.name", "Tubig Patas", "Tubig Patas", "Tubig Patas"],
+  ["app.name", "PIA WaterBack", "PIA WaterBack", "PIA WaterBack"],
   ["app.saved_offline", "Saved on this phone · works without signal", "Naka-save sa phone na ito · gumagana kahit walang signal", "Naka-save hini nga phone · nagana bisan waray signal"],
   ["app.offline_stale", "No signal · showing what was saved at {time}", "Walang signal · ipinapakita ang naka-save noong {time}", "Waray signal · ginpapakita an naka-save han {time}"],
   ["app.loading", "Getting the latest status…", "Kinukuha ang pinakabagong balita…", "Ginkukuha an pinakabag-o nga kahimtang…"],
-  ["app.error_title", "We can't reach Tubig Patas right now", "Hindi namin maabot ang Tubig Patas ngayon", "Diri namon maabot an Tubig Patas yana"],
+  ["app.error_title", "We can't reach PIA WaterBack right now", "Hindi namin maabot ang PIA WaterBack ngayon", "Diri namon maabot an PIA WaterBack yana"],
   ["app.error_body", "Check your signal, then try again.", "Tingnan ang signal, saka subukan ulit.", "Kitaa an signal, katapos utroha."],
   ["app.retry", "Try again", "Subukan ulit", "Utroha"],
   ["app.updated_at", "Updated {time}", "Na-update {time}", "Gin-update {time}"],

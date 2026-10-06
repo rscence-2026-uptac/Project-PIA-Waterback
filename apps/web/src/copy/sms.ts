@@ -11,9 +11,9 @@ type Row = { key: string; english: string; filipino: string; waray: string };
 const ROWS: Row[] = [
   {
     key: "sms.water_off",
-    english: "TUBIG PATAS: Water OFF in {barangay} since {since}. {cause}. Back {window}, likely {likely}. Store {litres}L now. Reply SRC for backup water.",
-    filipino: "TUBIG PATAS: Walang tubig sa {barangay} mula {since}. {cause}. Babalik {window}, malamang {likely}. Mag-ipon ng {litres}L. Reply SRC sa reserba.",
-    waray: "TUBIG PATAS: Waray tubig ha {barangay} tikang {since}. {cause}. Mabalik {window}, posible {likely}. Pag-ipon {litres}L. Reply SRC para reserba.",
+    english: "PIA WATERBACK: Water OFF in {barangay} since {since}. {cause}. Back {window}, likely {likely}. Store {litres}L now. Reply SRC for backup water.",
+    filipino: "PIA WATERBACK: Walang tubig sa {barangay} mula {since}. {cause}. Babalik {window}, malamang {likely}. Mag-ipon ng {litres}L. Reply SRC sa reserba.",
+    waray: "PIA WATERBACK: Waray tubig ha {barangay} tikang {since}. {cause}. Mabalik {window}, posible {likely}. Pag-ipon {litres}L. Reply SRC para reserba.",
   },
   {
     key: "sms.sources",
@@ -29,15 +29,15 @@ const ROWS: Row[] = [
   },
   {
     key: "sms.water_back",
-    english: "TUBIG PATAS: Water BACK in {barangay} at {time}, {diff}. Run tap until clear before drinking. Reply THANKS to thank your captain {captain}.",
-    filipino: "TUBIG PATAS: May tubig na sa {barangay} {time}, {diff}. Padaluyin hanggang luminaw bago inumin. Reply THANKS para kay {captain}.",
-    waray: "TUBIG PATAS: May tubig na ha {barangay} {time}, {diff}. Pabay-i magawas tubtob tumin-aw antes imnon. Reply THANKS para kan {captain}.",
+    english: "PIA WATERBACK: Water BACK in {barangay} at {time}, {diff}. Run tap until clear before drinking. Reply THANKS to thank your captain {captain}.",
+    filipino: "PIA WATERBACK: May tubig na sa {barangay} {time}, {diff}. Padaluyin hanggang luminaw bago inumin. Reply THANKS para kay {captain}.",
+    waray: "PIA WATERBACK: May tubig na ha {barangay} {time}, {diff}. Pabay-i magawas tubtob tumin-aw antes imnon. Reply THANKS para kan {captain}.",
   },
   {
     key: "sms.partner_ask",
-    english: "TUBIG PATAS: {barangays} have no piped water until about {time}. Are you open with stock? Reply OPEN and gallons (e.g. OPEN 40) or CLOSED.",
-    filipino: "TUBIG PATAS: Walang tubig sa {barangays} hanggang {time}. Bukas ka ba at may stock? Reply OPEN at galon (hal. OPEN 40) o CLOSED.",
-    waray: "TUBIG PATAS: Waray tubig ha {barangays} tubtob {time}. Bukas ka ngan may stock? Reply OPEN ngan galon (pananglitan OPEN 40) o CLOSED.",
+    english: "PIA WATERBACK: {barangays} have no piped water until about {time}. Are you open with stock? Reply OPEN and gallons (e.g. OPEN 40) or CLOSED.",
+    filipino: "PIA WATERBACK: Walang tubig sa {barangays} hanggang {time}. Bukas ka ba at may stock? Reply OPEN at galon (hal. OPEN 40) o CLOSED.",
+    waray: "PIA WATERBACK: Waray tubig ha {barangays} tubtob {time}. Bukas ka ngan may stock? Reply OPEN ngan galon (pananglitan OPEN 40) o CLOSED.",
   },
   {
     key: "sms.partner_thanks",
