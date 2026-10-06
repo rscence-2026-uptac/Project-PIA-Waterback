@@ -67,7 +67,7 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+sql_paths = ["./seed/cwd_wsp_constants.sql", "./seed/intakes.sql", "./seed/barangays.sql", "./seed/rainfall_daily.sql", "./seed/rainfall_hourly.sql", "./seed/rainfall_context_2026_06.sql", "./seed/rain_forecast_hourly.sql", "./seed/july_readings.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -411,3 +411,7 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Spec 06: the SMS gateway calls this without a Supabase JWT; it is protected by ?token=SMS_WEBHOOK_SECRET.
+[functions.sms-webhook]
+verify_jwt = false

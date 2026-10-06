@@ -1,0 +1,59 @@
+{
+  "version": "2026-10-06.2",
+  "trained_at": "2026-10-06T10:03:23+00:00",
+  "seed": 20261006,
+  "training_data": "synthetic, physics-informed; rain = real Open-Meteo 2016-2025 Catbalogan; not real incident history",
+  "signal_level_thresholds": [
+    0.2,
+    0.4,
+    0.6,
+    0.8
+  ],
+  "decision_threshold": 0.4,
+  "turbidity": {
+    "features": [
+      "turbidity_ntu",
+      "turbidity_slope_per_hr",
+      "rain_24h_mm",
+      "rain_72h_mm",
+      "forecast_rain_48h_mm"
+    ],
+    "bias": -3.067541607941377,
+    "weights": {
+      "turbidity_ntu": 0.009111627771016465,
+      "turbidity_slope_per_hr": -0.0008902871096390723,
+      "rain_24h_mm": 0.09876844308516028,
+      "rain_72h_mm": 0.011187125382325063,
+      "forecast_rain_48h_mm": 0.20224929833247204
+    },
+    "metrics": {
+      "recall": 0.8454474708171206,
+      "precision": 0.7855954877431485,
+      "roc_auc": 0.935820362884588,
+      "n_test": 36000,
+      "positive_rate": 0.35694444444444445
+    }
+  },
+  "drought": {
+    "features": [
+      "reservoir_pct",
+      "rain_14d_mm",
+      "rain_30d_mm",
+      "days_since_rain_over_5mm"
+    ],
+    "bias": 4.237589067675291,
+    "weights": {
+      "reservoir_pct": -0.057730106823536013,
+      "rain_14d_mm": -0.009978047161867032,
+      "rain_30d_mm": -0.008676213440875663,
+      "days_since_rain_over_5mm": 0.06314853251297636
+    },
+    "metrics": {
+      "recall": 0.9636524822695035,
+      "precision": 0.7404632152588556,
+      "roc_auc": 0.9887348388242556,
+      "n_test": 6000,
+      "positive_rate": 0.188
+    }
+  }
+}

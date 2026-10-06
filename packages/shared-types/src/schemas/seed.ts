@@ -2,13 +2,14 @@ import { z } from "zod";
 
 // specs/01-seed-data.md (WSP_CONSTANTS lives in ../constants.ts)
 export const ReadingSeedRow = z.object({
-  recorded_at: z.string().datetime(),
-  barangay_id: z.string(),
+  recorded_at: z.iso.datetime(),
+  intake_id: z.string(),
   turbidity_ntu: z.number().nonnegative(),
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
-  reservoir_pct: z.number().min(0).max(100),
-  clarifier_inflow_lps: z.number().nonnegative(),
+  reservoir_pct: z.number().min(0).max(100).nullable(),
+  clarifier_inflow_lps: z.number().nonnegative().nullable(),
   source: z.literal("operator"), // seed rows are explicitly labeled simulated, not sensor-sourced
+  is_simulated: z.literal(true), // simulated seed data, never CWD telemetry (spec 01)
 });
 export type ReadingSeedRow = z.infer<typeof ReadingSeedRow>;
 
