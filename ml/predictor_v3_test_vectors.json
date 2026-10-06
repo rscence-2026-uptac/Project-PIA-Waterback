@@ -1,0 +1,321 @@
+{
+ "model": "v2a",
+ "features": [
+  "turbidity_ntu",
+  "rain_24h_mm",
+  "rain_72h_mm",
+  "forecast_rain_48h_mm"
+ ],
+ "vectors": [
+  {
+   "features": {
+    "turbidity_ntu": 59.9325,
+    "rain_24h_mm": 1.9,
+    "rain_72h_mm": 3.9,
+    "forecast_rain_48h_mm": 2.2588
+   },
+   "p": 0.13739712476868562,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 51.6186,
+    "rain_24h_mm": 5.1,
+    "rain_72h_mm": 12.9,
+    "forecast_rain_48h_mm": 10.7362
+   },
+   "p": 0.5562104748635596,
+   "level": 2
+  },
+  {
+   "features": {
+    "turbidity_ntu": 30.6478,
+    "rain_24h_mm": 0.4,
+    "rain_72h_mm": 5.7,
+    "forecast_rain_48h_mm": 3.917
+   },
+   "p": 0.13068509469355932,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 95.8064,
+    "rain_24h_mm": 3.5,
+    "rain_72h_mm": 8.2,
+    "forecast_rain_48h_mm": 2.2486
+   },
+   "p": 0.21292948987648522,
+   "level": 1
+  },
+  {
+   "features": {
+    "turbidity_ntu": 209.4858,
+    "rain_24h_mm": 10.2,
+    "rain_72h_mm": 39.6,
+    "forecast_rain_48h_mm": 29.2116
+   },
+   "p": 0.9979738410796947,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 321.9566,
+    "rain_24h_mm": 34.3,
+    "rain_72h_mm": 44.7,
+    "forecast_rain_48h_mm": 9.4707
+   },
+   "p": 0.9966141967223842,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 17.7221,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 2.4,
+    "forecast_rain_48h_mm": 2.1214
+   },
+   "p": 0.07928335686353306,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 13.9469,
+    "rain_24h_mm": 2.2,
+    "rain_72h_mm": 10.6,
+    "forecast_rain_48h_mm": 0.7622
+   },
+   "p": 0.0795433448881235,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 73.9475,
+    "rain_24h_mm": 1.7,
+    "rain_72h_mm": 5.6,
+    "forecast_rain_48h_mm": 2.3937
+   },
+   "p": 0.15652559465954724,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 68.9242,
+    "rain_24h_mm": 10.9,
+    "rain_72h_mm": 20.6,
+    "forecast_rain_48h_mm": 18.591
+   },
+   "p": 0.9333164143442836,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 36.4798,
+    "rain_24h_mm": 6.8,
+    "rain_72h_mm": 25.4,
+    "forecast_rain_48h_mm": 1.8001
+   },
+   "p": 0.19652325197008447,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 76.8847,
+    "rain_24h_mm": 2.4,
+    "rain_72h_mm": 3.0,
+    "forecast_rain_48h_mm": 120.217
+   },
+   "p": 0.9999999997790048,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 33.7377,
+    "rain_24h_mm": 3.0,
+    "rain_72h_mm": 13.8,
+    "forecast_rain_48h_mm": 0.25
+   },
+   "p": 0.09467969773436914,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 26.7028,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 2.2,
+    "forecast_rain_48h_mm": 3.548
+   },
+   "p": 0.11059228546541001,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 10.9044,
+    "rain_24h_mm": 0.3,
+    "rain_72h_mm": 3.1,
+    "forecast_rain_48h_mm": 1.7937
+   },
+   "p": 0.07296845776204686,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 44.2394,
+    "rain_24h_mm": 2.1,
+    "rain_72h_mm": 9.0,
+    "forecast_rain_48h_mm": 1.2825
+   },
+   "p": 0.10924857529361362,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 11.0999,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 2.8,
+    "forecast_rain_48h_mm": 0.4016
+   },
+   "p": 0.05440355359222617,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 8.2611,
+    "rain_24h_mm": 0.3,
+    "rain_72h_mm": 2.3,
+    "forecast_rain_48h_mm": 1.0159
+   },
+   "p": 0.061096548444441935,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 9.9438,
+    "rain_24h_mm": 1.2,
+    "rain_72h_mm": 7.1,
+    "forecast_rain_48h_mm": 15.2534
+   },
+   "p": 0.576677712452104,
+   "level": 2
+  },
+  {
+   "features": {
+    "turbidity_ntu": 5.1673,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 0.7,
+    "forecast_rain_48h_mm": 2.6519
+   },
+   "p": 0.07748281437161685,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 3.7646,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 0.0,
+    "forecast_rain_48h_mm": 0.0
+   },
+   "p": 0.04589572393156656,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 4718.071,
+    "rain_24h_mm": 203.3,
+    "rain_72h_mm": 377.8,
+    "forecast_rain_48h_mm": 932.3362
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 2360.9178,
+    "rain_24h_mm": 101.65,
+    "rain_72h_mm": 188.9,
+    "forecast_rain_48h_mm": 466.1681
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 38.69,
+    "rain_24h_mm": 2.1,
+    "rain_72h_mm": 7.9,
+    "forecast_rain_48h_mm": 3.9359
+   },
+   "p": 0.16468781811473268,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 0.0,
+    "rain_24h_mm": 0.0,
+    "rain_72h_mm": 0.0,
+    "forecast_rain_48h_mm": 0.0
+   },
+   "p": 0.04443334004678569,
+   "level": 0
+  },
+  {
+   "features": {
+    "turbidity_ntu": 14155.2129,
+    "rain_24h_mm": 610.9,
+    "rain_72h_mm": 1134.4,
+    "forecast_rain_48h_mm": 2798.0086
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 2588.0249,
+    "rain_24h_mm": 62.2813,
+    "rain_72h_mm": 87.4394,
+    "forecast_rain_48h_mm": 561.7178
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 2933.5236,
+    "rain_24h_mm": 159.8027,
+    "rain_72h_mm": 314.9806,
+    "forecast_rain_48h_mm": 803.43
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 4043.625,
+    "rain_24h_mm": 174.223,
+    "rain_72h_mm": 106.0195,
+    "forecast_rain_48h_mm": 465.1599
+   },
+   "p": 1.0,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 1907.0828,
+    "rain_24h_mm": 80.7959,
+    "rain_72h_mm": 7.8723,
+    "forecast_rain_48h_mm": 28.2152
+   },
+   "p": 0.9999999999993037,
+   "level": 4
+  },
+  {
+   "features": {
+    "turbidity_ntu": 1884.1506,
+    "rain_24h_mm": 43.0261,
+    "rain_72h_mm": 324.5506,
+    "forecast_rain_48h_mm": 119.8031
+   },
+   "p": 1.0,
+   "level": 4
+  }
+ ]
+}
