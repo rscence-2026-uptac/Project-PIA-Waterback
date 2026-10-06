@@ -1,6 +1,6 @@
 # 09 — Consumer types and priority map
 
-- **Status:** locked (owner OK 2026-10-06; Dev A review pending)
+- **Status:** superseded (ranking) by spec 10 on 2026-10-07; the map and list UI are reused there
 - **Owner:** Dev B
 - **Reviewed by:** owner; Dev A pending (backend asks in `docs/dev-b-handoff.md` #10)
 - **Depends on:** 03 (affected barangays), 06 (allocation screen, `AllocationDecision`), 08 (UI rules), seed `barangays.sql` lat/lng

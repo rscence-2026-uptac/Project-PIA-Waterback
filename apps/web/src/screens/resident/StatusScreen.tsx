@@ -7,7 +7,7 @@ import { useBarangay } from "../../lib/barangay";
 import { readSetting, subscribeSetting, writeSetting } from "../../lib/settings";
 import { formatShortTime, formatTime, formatWindow, minutesBetween } from "../../lib/time";
 import { snapshotWaterState } from "../../lib/snapshotState";
-import { dropLook, headsUpHeadlineKey, headsUpUrgency, type WaterState } from "../../lib/waterState";
+import { dropLook, type WaterState } from "../../lib/waterState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { Button, ButtonLink } from "../../ui/Button";
 import { DropGauge } from "../../ui/Drop";
@@ -15,8 +15,7 @@ import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { CostLabel, LiveStatusLabel, SafetyLabel, SimulatedLabel } from "../../ui/SourceBits";
 import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
-import { HeadsUpCard } from "../../ui/HeadsUpCard";
-import { likelyStart } from "../../lib/headsUp";
+import { useAsOf } from "../../demo/clockState";
 import { ConnectionLine, ResidentHeader } from "./ResidentLayout";
 import { WaterBackView } from "./WaterBackView";
 
@@ -48,8 +47,7 @@ function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; sig
 
   return (
     <>
-      <StatusCard state={state} detail={detail} urgency={snapshot.heads_up_urgency ?? headsUpUrgency(signalLevel)} startAt={likelyStart(snapshot)} />
-      {state === "headsup" && <HeadsUpCard snapshot={snapshot} />}
+      <StatusCard state={state} detail={detail} />
       {pipedOff && detail.disruption_id && (
         <ConfirmWaterBack
           disruptionId={detail.disruption_id}
@@ -64,17 +62,11 @@ function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; sig
   );
 }
 
-function StatusCard({ state, detail, urgency, startAt }: {
-  state: WaterState;
-  detail: DisruptionDetail;
-  urgency: ReturnType<typeof headsUpUrgency>;
-  startAt: string | null;
-}) {
+function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDetail }) {
   const { t } = useCopy();
-  // A heads-up is a prediction: no cause line (it reads like an outage); the heads-up card below carries the time and the why.
   const sub =
     state === "flowing" ? t("state.flowing.sub")
-    : state === "headsup" ? ""
+    : state === "headsup" && detail.heads_up_from ? t("state.headsup.sub", { time: formatShortTime(detail.heads_up_from) })
     : detail.cause ? t(`cause.${detail.cause}`)
     : "";
   const hasWindow = (state === "interrupted" || state === "repair") && detail.window_start && detail.window_end;
@@ -85,11 +77,9 @@ function StatusCard({ state, detail, urgency, startAt }: {
         <DropGauge look={dropLook(state, detail.cause)} width={72} className="shrink-0" />
         <div className="min-w-0">
           <h1 id="status-headline" className="text-[30px] leading-[1.05] tracking-[-0.03em] text-ink">
-            {state === "headsup"
-              ? t(headsUpHeadlineKey(urgency, startAt !== null), { time: startAt ? formatShortTime(startAt) : "" })
-              : t(`state.${state}.headline`)}
+            {t(`state.${state}.headline`)}
           </h1>
-          {sub && <p className="mt-2 text-ink-soft">{sub}</p>}
+          <p className="mt-2 text-ink-soft">{sub}</p>
         </div>
       </div>
 
@@ -113,21 +103,48 @@ function StatusCard({ state, detail, urgency, startAt }: {
   );
 }
 
+/** "Now" for this screen: the demo clock when it is pinned to a replayed moment, else the real clock (ticking). */
 function useNow() {
-  const [now, setNow] = useState(() => new Date());
+  const { asOf, pinned } = useAsOf();
+  const [real, setReal] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000);
+    const id = setInterval(() => setReal(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
-  return now;
+  return pinned ? asOf : real;
+}
+
+const DAY_MS = 86_400_000;
+/** Whole calendar days from `now` to `date` (0 = same day, 1 = tomorrow). */
+function dayDiff(date: Date, now: Date) {
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((midnight(date) - midnight(now)) / DAY_MS);
+}
+
+/** "Thursday" in the resident's language (Waray borrows the Filipino day names). */
+function weekday(date: Date, language: string) {
+  return new Intl.DateTimeFormat(language === "english" ? "en-GB" : "fil-PH", { weekday: "long" }).format(date);
 }
 
 function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
-  const { t } = useCopy();
+  const { t, language } = useCopy();
   const now = useNow();
   const start = new Date(detail.window_start!);
   const end = new Date(detail.window_end!);
   const late = now >= end;
+  const dayWord = (d: Date) => {
+    const n = dayDiff(d, now);
+    return n === 0 ? t("status.day_today") : n === 1 ? t("status.day_tomorrow") : weekday(d, language);
+  };
+  const sameDay = dayDiff(start, end) === 0;
+  const startIn = dayDiff(start, now);
+  const heading = !sameDay ? t("status.back_between_days")
+    : startIn <= 0 || start <= now ? t("status.back_between")
+    : startIn === 1 ? t("status.back_between_tomorrow")
+    : t("status.back_between_on", { day: weekday(start, language) });
+  const windowText = sameDay
+    ? formatWindow(start, end)
+    : `${dayWord(start)} ${formatShortTime(start)} – ${dayWord(end)} ${formatShortTime(end)}`;
   const minutesDry = detail.started_at ? Math.max(0, minutesBetween(detail.started_at, now)) : null;
   const hoursDry = minutesDry === null ? 0 : Math.round(minutesDry / 60);
 
@@ -141,10 +158,8 @@ function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
             : t("status.dry_hours", { n: hoursDry })}
         </p>
       )}
-      <p className="mt-4 text-[16px] font-bold">
-        {start.toDateString() === now.toDateString() ? t("status.back_between") : t("status.back_between_tomorrow")}
-      </p>
-      <p className="numeral mt-1 text-[44px] text-ink">{formatWindow(start, end)}</p>
+      <p className="mt-4 text-[16px] font-bold">{heading}</p>
+      <p className={`numeral mt-1 text-ink ${sameDay ? "text-[44px]" : "text-[30px] leading-tight"}`}>{windowText}</p>
       {late ? (
         <p className="mt-3 flex gap-2.5 text-[18px] font-bold text-ink">
           <Icon name="alert" size={22} className="mt-0.5 shrink-0" />
@@ -205,10 +220,16 @@ function OutageTimeline({ stopped, now, start, end }: { stopped: Date; now: Date
   );
 }
 
-function useFilledContainers(barangayId: string) {
-  const key = `storage.${barangayId}`;
+function useFilledContainers(barangayId: string, disruptionId: string | null | undefined) {
+  const key = `storage.${barangayId}.${disruptionId ?? "none"}`;
   const raw = useSyncExternalStore(subscribeSetting, () => readSetting(key), () => null);
-  const filled: boolean[] = raw ? JSON.parse(raw) : [];
+  let filled: boolean[] = [];
+  try {
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) filled = parsed;
+  } catch {
+    filled = [];
+  }
   const toggle = (index: number) => {
     const next = [...filled];
     next[index] = !next[index];
@@ -220,27 +241,17 @@ function useFilledContainers(barangayId: string) {
 function StoragePlanSection({ snapshot }: { snapshot: BarangaySnapshot }) {
   const { t } = useCopy();
   const { storage, status } = snapshot;
-  const { filled, toggle } = useFilledContainers(status.barangay_id);
+  const { filled, toggle } = useFilledContainers(status.barangay_id, snapshot.detail.disruption_id);
   const target = storage.people * storage.per_person_l;
   const filledCount = Array.from({ length: storage.containers }, (_, i) => filled[i]).filter(Boolean).length;
   const litres = filledCount * storage.container_l;
-  const totalSteps = storage.containers + 1; // alerts on + each container
-  const doneSteps = 1 + filledCount;
-  const { detail } = snapshot;
-  const start = likelyStart(snapshot);
-  const timing = detail.disruption_id && !detail.restored_at
-    ? (snapshot.interruption_observed && detail.window_start && detail.window_end
-      ? t("storage.timing_window", { window: formatWindow(detail.window_start, detail.window_end) })
-      : start ? t("storage.timing_likely", { time: formatShortTime(start) }) : null)
-    : null;
+  const totalSteps = storage.containers; // one step per container
+  const doneSteps = filledCount;
 
   return (
     <section id="storage" className="mt-8 scroll-mt-4" aria-labelledby="storage-title">
       <h2 id="storage-title" className="text-[28px] leading-tight">{t("storage.title", { litres: target })}</h2>
       <p className="mt-1 text-ink-soft">{t("storage.household", { people: storage.people, per: storage.per_person_l })}</p>
-      {/* Derived, not sampled: the heads-up rule (60 L = 4 people x 15 L) and the disruption's likely time / window. */}
-      <p className="mt-1 text-[14px] text-ink-soft">{t("storage.rule", { litres: target, people: storage.people, per: storage.per_person_l })}</p>
-      {timing && <p className="mt-2 font-bold">{timing}</p>}
 
       <div className="mt-4 flex items-center justify-between text-[15px]">
         <span className="font-bold">{t("storage.steps", { done: doneSteps, total: totalSteps })}</span>
@@ -252,17 +263,7 @@ function StoragePlanSection({ snapshot }: { snapshot: BarangaySnapshot }) {
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-lg bg-mist p-4">
-        <span className="flex size-8 items-center justify-center rounded-full bg-water text-foam">
-          <Icon name="check" size={18} strokeWidth={3} />
-        </span>
-        <span>
-          <strong className="block">{t("storage.alerts_title")}</strong>
-          <span className="text-[15px] text-ink-soft">{t("storage.alerts_body")}</span>
-        </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-3 gap-3">
         {Array.from({ length: storage.containers }, (_, i) => (
           <ContainerTile
             key={i}

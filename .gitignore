@@ -15,6 +15,9 @@ supabase/.temp/
 supabase/.branches/
 .DS_Store
 
+# WorldPop raw GeoTIFFs (one-time download, not committed)
+data/population/raw/
+
 # build output / archives (never commit)
 /dist/
 *.zip

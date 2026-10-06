@@ -1,6 +1,7 @@
 // SPEC: 06 AC3–AC4 — a resident (or the barangay water captain on their behalf) confirms whether
 // water is back. Not in the wireframes; required by the spec (flagged).
-// The answer is saved to spec 05's offline queue and sent when Dev A's sync exists; the "sent" line
+// The answer is saved to spec 05's offline queue; enqueue() then calls syncQueue() so it goes out at once when
+// online (and the 30 s timer / the `online` event retry it otherwise). The "sent" line
 // appears only after the queue item is marked synced, never on save. Only
 // restored = true may resolve the disruption; restored = false puts the barangay back on the
 // LGU allocation screen. That decision is made server-side, not here.
@@ -24,11 +25,11 @@ export function ConfirmWaterBack({ disruptionId, barangayId, confirmedBy, title 
   const latest = useLiveQuery(
     async () => {
       const items = await db.queue.where("kind").equals("resident_confirmation").sortBy("queued_at");
-      const mine = items.filter((item) => item.payload.disruption_id === disruptionId && item.payload.confirmed_by === confirmedBy);
+      const mine = items.filter((item) => item.payload.disruption_id === disruptionId && item.payload.barangay_id === barangayId && item.payload.confirmed_by === confirmedBy);
       const last = mine.at(-1);
       return last ? { restored: last.payload.restored as boolean, sent: last.synced } : null;
     },
-    [disruptionId, confirmedBy],
+    [disruptionId, barangayId, confirmedBy],
     null as { restored: boolean; sent: boolean } | null,
   );
   const saved = latest?.restored ?? null;

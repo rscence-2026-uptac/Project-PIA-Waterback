@@ -140,7 +140,7 @@ function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
 
       <Checklist barangayId={snapshot.status.barangay_id} state={state} snapshot={snapshot} />
 
-      <MorningRound barangayId={snapshot.status.barangay_id} sources={captain.sources} reach={captain.live ? null : captain.households_reached} />
+      <MorningRound barangayId={snapshot.status.barangay_id} sources={captain.sources} />
 
       <section className="mt-8" aria-labelledby="updates-title">
         <h2 id="updates-title" className="text-[28px] leading-tight">{t("captain.updates_title")}</h2>
@@ -198,7 +198,7 @@ function useRound(barangayId: string) {
   return { saved, record };
 }
 
-function MorningRound({ barangayId, sources, reach }: { barangayId: string; sources: CaptainSource[]; reach: number | null }) {
+function MorningRound({ barangayId, sources }: { barangayId: string; sources: CaptainSource[] }) {
   const { t } = useCopy();
   const { saved, record } = useRound(barangayId);
   const { show, toast } = useToast();
@@ -244,7 +244,7 @@ function MorningRound({ barangayId, sources, reach }: { barangayId: string; sour
                     aria-checked={selected}
                     onClick={() => {
                       record(row.id, segment.status);
-                      show(reach === null ? t("captain.toast_saved") : t("captain.toast", { n: reach }));
+                      show(t("captain.toast"));
                     }}
                     className={`press h-11 rounded-sm text-[15px] font-bold ${selected ? segment.selected : "bg-mist text-ink"}`}
                   >

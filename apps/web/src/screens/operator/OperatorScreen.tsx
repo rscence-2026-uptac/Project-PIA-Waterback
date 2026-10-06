@@ -108,6 +108,8 @@ export function OperatorScreen() {
             </Pill>
           )}
         </div>
+        {/* MOCK: everything below except the readings you save here is sample data. Live mode labels each sample piece itself. */}
+        {!live && <p className="mt-2 text-[14px] text-ink-soft">{t("operator.sample")}</p>}
 
         <fieldset className="mt-4">
           <legend className="text-[14px] font-bold">{t("operator.intake_label")}</legend>
@@ -152,10 +154,7 @@ export function OperatorScreen() {
             {hasDrivers(prediction) ? (
               <WhyPanel prediction={prediction} />
             ) : (
-              <>
-                <DetectorPanel />
-                <EarlyWarnings />
-              </>
+              <DetectorPanel />
             )}
             <p className="text-[13px] text-ink-soft">
               {t("operator.footnote", { limit: TURBIDITY_LIMIT_NTU, shut: TURBIDITY_SHUTOFF_NTU, cap: CLARIFIER_CAPACITY_LPS })}
@@ -510,33 +509,6 @@ function DetectorPanel() {
       <p className="mt-3 text-[13px] text-sky">
         {t("detector.next", { time: formatTime(d.next_update_at), remind: formatTime(d.remind_at) })}
       </p>
-    </section>
-  );
-}
-
-const WARNING_CAUSE: Record<(typeof OPERATOR.early_warnings)[number]["cause"], CopyKeyName> = {
-  turbidity: "warnings.turbidity",
-  repair: "warnings.repair",
-  low_source: "warnings.low_source",
-};
-
-function EarlyWarnings() {
-  const { t } = useCopy();
-  return (
-    <section className="rounded-xl border-[1.5px] border-haze p-6">
-      <h2 className="flex flex-wrap items-center gap-2 font-display text-[22px]">{t("warnings.title")} <SampleChip /></h2>
-      <p className="mt-1 text-[14px] text-ink-soft">{t("warnings.sub")}</p>
-      <ul className="mt-4">
-        {OPERATOR.early_warnings.map((w) => (
-          <li key={w.date} className="flex items-center justify-between border-b border-haze py-3 last:border-b-0">
-            <span>
-              {w.date} · {t(WARNING_CAUSE[w.cause])}
-            </span>
-            <strong className="tabular-nums">{w.notice}</strong>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 rounded-lg bg-mist p-3 text-[14px]">{t("warnings.note")}</p>
     </section>
   );
 }

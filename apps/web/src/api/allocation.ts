@@ -1,16 +1,12 @@
-// LGU allocation + open event, live or sample. Live: affected-areas (suggested_rank, top_source) and the
-// open disruption from dashboard-snapshot. Sample: data/mockLgu.ts. One row per barangay when live,
-// because confirm-allocation takes unique barangay_ids. Spec 09: only the LGU facility count is live (barangays.critical_facilities);
-// commercial / industrial need CWD billing classes and stay out of live mode.
-import { CATBALOGAN_BARANGAYS } from "../data/barangays";
-import { AFFECTED_GROUPS, BARANGAY_POINTS, OPEN_EVENT, type AffectedGroupRow } from "../data/mockLgu";
-import { BARANGAYS, type Cause } from "../data/mock";
-import type { BarangayPoint } from "../contracts/spec09";
-import type { AffectedArea } from "../contracts/spec03";
+// The open disruption for the LGU screens, live or sample. Live: the open disruption from dashboard-snapshot at the
+// demo clock's as_of. Sample: the wireframe's event (data/mockLgu.ts).
+// The allocation list itself is Dev B's spec 10 cluster ranking (lib/need.ts); it is computed on the device from
+// seed data, so only the event and the confirm / notify writes come from the backend.
+import { OPEN_EVENT } from "../data/mockLgu";
+import type { Cause } from "../data/mock";
 import { useAsOf } from "../demo/clockState";
 import { isLive } from "./client";
-import { fetchFacilities } from "./rest";
-import { getAffectedAreas, getDashboardSnapshot, postRankChainBatch } from "./endpoints";
+import { getDashboardSnapshot } from "./endpoints";
 import { useResource } from "./useResource";
 
 export interface OpenEvent {
@@ -18,6 +14,7 @@ export interface OpenEvent {
   code: string;
   cause: Cause;
   status: "predicted" | "confirmed" | "deployed" | "notified" | "resolved" | null; // null = sample
+  signal_level: number; // the predictor's system-wide level (spec 02)
   flagged_by: string;
   flagged_at: string | null;
   window_start: string | null;
@@ -26,19 +23,8 @@ export interface OpenEvent {
   live: boolean;
 }
 
-export interface AllocationData {
-  event: OpenEvent | null; // null = no open disruption at this as_of
-  groups: AffectedGroupRow[];
-  points: BarangayPoint[];
-}
-
-const nameOf = (id: string) => BARANGAYS.find((b) => b.barangay_id === id)?.name ?? id;
-
-const SAMPLE_EVENT: OpenEvent = { ...OPEN_EVENT, status: null, live: false };
-
-const POINTS: BarangayPoint[] = CATBALOGAN_BARANGAYS
-  .filter((b): b is typeof b & { lat: number; lng: number } => b.lat !== null && b.lng !== null)
-  .map((b) => ({ barangay_id: b.barangay_id, name: b.name.replace(/\s*\(.*\)$/, ""), lat: b.lat, lng: b.lng }));
+// MOCK: the sample event is a confirmed signal-4 turbidity outage (same one the resident screens use).
+const SAMPLE_EVENT: OpenEvent = { ...OPEN_EVENT, status: null, signal_level: 4, live: false };
 
 export const eventCode = (id: string) => `EVT-${id.slice(0, 8).toUpperCase()}`;
 
@@ -53,6 +39,7 @@ export async function loadOpenEvent(asOf: Date, signal?: AbortSignal): Promise<O
     code: eventCode(d.id),
     cause: d.cause,
     status: d.status,
+    signal_level: d.signal_level,
     flagged_by: d.status === "predicted" ? "the predictor" : "the operator",
     flagged_at: d.started_at,
     window_start: d.window_start ?? null,
@@ -60,61 +47,6 @@ export async function loadOpenEvent(asOf: Date, signal?: AbortSignal): Promise<O
     likely_at: d.likely_at ?? null,
     live: true,
   };
-}
-
-const rankedFor = new Set<string>(); // disruptions rank-chain was already run for this session
-
-const FACILITY_TYPES = ["health_station", "school", "evacuation_center"] as const;
-
-function toGroup(area: AffectedArea, facilities: string[] = []): AffectedGroupRow {
-  const known = area.piped_households_affected !== null && area.unpiped_households_affected !== null;
-  return {
-    barangay_id: area.barangay_id,
-    name: nameOf(area.barangay_id),
-    consumer_type: "residential",
-    connections_affected: known ? area.piped_households_affected! + area.unpiped_households_affected! : null,
-    coverage_confidence: area.coverage_confidence,
-    // barangays.critical_facilities (live). Counts of vulnerable households / no-backup connections have no backend source yet.
-    facilities: FACILITY_TYPES.filter((f) => facilities.includes(f)),
-    vulnerable_residents: 0,
-    no_backup_connections: 0,
-    suggested_rank: area.suggested_rank ?? 0,
-    service_level: area.service_level,
-    reported_not_restored: false,
-    vulnerable_flag: area.vulnerable_flag,
-    top_source: area.top_source ?? null,
-  };
-}
-
-export async function loadAllocation(asOf: Date, signal?: AbortSignal): Promise<AllocationData> {
-  if (!isLive()) return { event: SAMPLE_EVENT, groups: AFFECTED_GROUPS, points: BARANGAY_POINTS };
-  const event = await loadOpenEvent(asOf, signal);
-  if (!event) return { event: null, groups: [], points: POINTS };
-
-  let areas = await getAffectedAreas(asOf, { disruptionId: event.disruption_id, signal });
-  const needsChains = event.status !== "predicted" && !rankedFor.has(event.disruption_id)
-    && areas.some((a) => a.suggested_rank !== null && a.suggested_rank !== undefined && !a.top_source);
-  if (needsChains) {
-    rankedFor.add(event.disruption_id);
-    // Spec 04: run the batch once after confirmation so affected-areas can return top_source.
-    try {
-      await postRankChainBatch(event.disruption_id, undefined, signal);
-      areas = await getAffectedAreas(asOf, { disruptionId: event.disruption_id, signal });
-    } catch {
-      // The list still works without first-stop hints.
-    }
-  }
-  const shown = areas.filter((a) => a.signal_level >= 2 && a.suggested_rank);
-  const facilities = await fetchFacilities(shown.map((a) => a.barangay_id)).catch(() => new Map<string, string[]>());
-  const groups = shown
-    .map((a) => toGroup(a, facilities.get(a.barangay_id)))
-    .sort((a, b) => a.suggested_rank - b.suggested_rank);
-  return { event, groups, points: POINTS };
-}
-
-export function useAllocationData() {
-  const { asOf, asOfKey } = useAsOf();
-  return useResource((signal) => loadAllocation(asOf, signal), [asOfKey]);
 }
 
 export function useOpenEvent() {

@@ -1,8 +1,9 @@
 // Resident app frame: phone-first single column, three-tab bottom bar (wireframe p.4).
+import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useCopy } from "../../copy/i18n";
 import { useBarangay } from "../../lib/barangay";
-import { formatTime } from "../../lib/time";
+import { formatResidentDate, formatTime } from "../../lib/time";
 import { Logo } from "../../ui/Logo";
 import { Icon, type IconName } from "../../ui/Icon";
 
@@ -50,21 +51,44 @@ function BottomBar() {
   );
 }
 
-/** Logo + location pill. Tapping the pill changes barangay or language. */
+/** Today, re-read every minute so the date turns over at midnight while the app stays open. */
+function useToday() {
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setToday(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return today;
+}
+
+/** Local YYYY-MM-DD (toISOString gives the UTC date, a day behind after midnight in PH time). */
+function localDate(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Logo + location pill, then today's date. Tapping the pill changes barangay or language. */
 export function ResidentHeader() {
   const barangay = useBarangay();
+  const { language } = useCopy();
+  const today = useToday();
   return (
-    <header className="flex items-center justify-between gap-3">
-      <Logo height={28} />
-      {barangay && (
-        <Link
-          to="/settings"
-          className="press flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-haze bg-foam px-4 text-[15px] text-ink"
-        >
-          <Icon name="pin" size={18} />
-          {barangay.name}
-        </Link>
-      )}
+    <header>
+      <div className="flex items-center justify-between gap-3">
+        <Logo height={28} />
+        {barangay && (
+          <Link
+            to="/settings"
+            className="press flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-haze bg-foam px-4 text-[15px] text-ink"
+          >
+            <Icon name="pin" size={18} />
+            {barangay.name}
+          </Link>
+        )}
+      </div>
+      <p className="mt-2 text-[17px] font-bold text-ink">
+        <time dateTime={localDate(today)}>{formatResidentDate(today, language)}</time>
+      </p>
     </header>
   );
 }

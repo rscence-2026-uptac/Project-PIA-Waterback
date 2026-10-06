@@ -52,7 +52,7 @@ const WORST_CASE: Record<string, string> = {
   barangay: "Guinsorongan",
   barangays: "Guinsorongan and San Andres",
   since: "11:45AM",
-  cause: "Water too turbid to treat",
+  cause: "River too muddy to treat",
   window: "11AM-2PM",
   likely: "12:30PM",
   litres: "60",
@@ -102,4 +102,16 @@ export function checkSmsTemplates(): SmsCheck[] {
 if (import.meta.env.DEV) {
   const flagged = checkSmsTemplates().filter((c) => !c.fits || !c.gsm7);
   if (flagged.length > 0) console.warn("SMS templates over one GSM-7 segment (spec 08, flag before shipping):", flagged);
+}
+
+/** One row per template and language for the native-speaker review sheet (CSV). */
+export function smsReviewCsv(): string {
+  const checks = checkSmsTemplates();
+  const q = (v: string | number | boolean) => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [["key", "language", "template", "worst_case_length", "fits_160", "gsm7", "reviewer_ok", "reviewer_fix"].map(q).join(",")];
+  for (const tpl of SMS_TEMPLATES) {
+    const c = checks.find((x) => x.key === tpl.key && x.language === tpl.language)!;
+    lines.push([tpl.key, tpl.language, tpl.template, c.worstLength, c.fits, c.gsm7, "", ""].map(q).join(","));
+  }
+  return lines.join("\r\n");
 }

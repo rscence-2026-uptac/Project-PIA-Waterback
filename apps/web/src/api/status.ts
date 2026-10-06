@@ -27,6 +27,7 @@ const toSeed = (row: SourceRow): SeedSource => ({
   travel_minutes: row.travel_minutes,
   cost_php_per_unit: row.cost_php_per_unit,
   active: row.active,
+  network_dependent: row.type === "neighboring_barangay", // the column isn't selected (rest.ts); same rule as backupSource.ts
   provenance: row.provenance ?? "placeholder",
   is_simulated: row.is_simulated ?? (row.provenance ?? "placeholder") === "placeholder",
   source_ref: row.source_ref ?? null,
@@ -43,6 +44,7 @@ const rankedToSeed = (r: RankedSource, row: SourceRow | undefined): SeedSource =
   travel_minutes: r.travel_minutes,
   cost_php_per_unit: r.cost_php_per_unit,
   active: true,
+  network_dependent: r.type === "neighboring_barangay",
   provenance: r.provenance ?? row?.provenance ?? "placeholder",
   is_simulated: r.is_simulated ?? row?.is_simulated ?? false,
   source_ref: r.source_ref ?? row?.source_ref ?? null,

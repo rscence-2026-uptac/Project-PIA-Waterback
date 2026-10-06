@@ -6,7 +6,7 @@ import { fetchLiveSnapshot } from "../api/status";
 import { isLive } from "../api/client";
 import { useAsOf } from "../demo/clockState";
 import { mockSnapshot, type BarangaySnapshot } from "../data/mock";
-import { db } from "./db";
+import { db, SNAPSHOT_SCHEMA, type CachedStatus } from "./db";
 
 export interface BarangayStatus {
   state: ScreenState;
@@ -40,21 +40,33 @@ export function useBarangayStatus(barangayId: string | null): BarangayStatus {
     let cancelled = false;
 
     (async () => {
-      const cached = await db.barangayStatus.get(barangayId);
+      let cached: CachedStatus | undefined;
+      try {
+        cached = await db.barangayStatus.get(barangayId);
+      } catch {
+        cached = undefined; // IndexedDB unavailable: carry on to the network, never hang on loading
+      }
       if (cancelled) return;
+      if (cached && cached.schema !== SNAPSHOT_SCHEMA) cached = undefined; // old shape: ignore
       if (hasFresh.current === barangayId) {
         // Re-fetching (retry or a new as_of): keep what is on screen, don't flash "offline".
       } else if (cached && (cached.snapshot.live === true) === isLive()) {
         setSnapshot(cached.snapshot);
-        setStale(true);
-        setState("offline_stale");
+        // Only call it stale while offline; otherwise the fetch below replaces it within a moment.
+        const offline = !navigator.onLine;
+        setStale(offline);
+        setState(offline ? "offline_stale" : "ready");
       } else {
         setState("loading");
       }
 
       try {
         const fresh = await fetchSnapshot(barangayId, asOf);
-        await db.barangayStatus.put({ barangay_id: barangayId, snapshot: fresh });
+        try {
+          await db.barangayStatus.put({ barangay_id: barangayId, snapshot: fresh, schema: SNAPSHOT_SCHEMA });
+        } catch {
+          // A failed cache write must not discard the fresh snapshot.
+        }
         if (cancelled) return;
         hasFresh.current = barangayId;
         setSnapshot(fresh);

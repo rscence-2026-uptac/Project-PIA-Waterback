@@ -11,7 +11,7 @@ do $$
 declare t text; n int;
 begin
   foreach t in array array['intakes','barangays','wsp_constants','rainfall_daily','rainfall_hourly','rain_forecast_hourly','readings','disruptions',
-                           'sources','continuity_chains','allocations','event_log'] loop
+                           'sources','continuity_chains','allocations','event_log','clusters'] loop
     execute format('select count(*) from public.%I', t) into n;
   end loop;
   assert (select count(*) from barangays where barangay_id = 'rls1') = 1, 'anon cannot see barangays row';

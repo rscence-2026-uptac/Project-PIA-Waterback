@@ -11,7 +11,7 @@ import type { PredictorOutput } from "../contracts/predictor";
 import type { ResidentStateName } from "../contracts/spec03";
 import type { RankedSource } from "../contracts/spec04";
 import { rankSeedSources, toBackupSource } from "../lib/backupSource";
-import { fromNow, todayAt } from "../lib/time";
+import { fromNow } from "../lib/time";
 import { CATBALOGAN_BARANGAYS } from "./barangays";
 import { SEED_SOURCES } from "./seedSources";
 
@@ -116,11 +116,12 @@ export const BARANGAYS: Barangay[] = CATBALOGAN_BARANGAYS.map((brgy) => ({
 }));
 
 /** Dev A's seed sources for the barangay, ranked as spec 04 would for this cause. */
-function sourcesFor(barangayId: string, cause: Cause | null): BackupSource[] {
+export function sourcesFor(barangayId: string, cause: Cause | null): BackupSource[] {
   const rows = SEED_SOURCES.filter((src) => src.barangay_id === barangayId);
   return rankSeedSources(rows, cause).map(toBackupSource);
 }
 
+// MOCK: no household storage data yet.
 const STORAGE: StoragePlan = { people: 4, per_person_l: 15, container_l: 20, containers: 3 };
 
 function captainFor(barangay: string): CaptainDay {
@@ -131,45 +132,53 @@ function captainFor(barangay: string): CaptainDay {
     to_working: 38,
     checks_today: 4,
     thanks: [
-      { quote: "“The faucet tip saved us a long walk. Thank you.”", who: "A household near the chapel", at: todayAt(7, 58) },
-      { quote: "“Thanks for checking the well so early.”", who: "A household on the riverside", at: todayAt(7, 51) },
+      { quote: "“The faucet tip saved us a long walk. Thank you.”", who: "A household near the chapel", at: fromNow(-1) },
+      { quote: "“Thanks for checking the well so early.”", who: "A household on the riverside", at: fromNow(-1.5) },
     ],
     more_thanks: 5,
     sources: [
-      { id: "cs-1", name: `Public faucet, ${barangay} plaza`, letter: "A", safety: "safe", checked_at: todayAt(7, 40), status: "flowing" },
+      { id: "cs-1", name: `Public faucet, ${barangay} plaza`, letter: "A", safety: "safe", checked_at: fromNow(-2.5), status: "flowing" },
       { id: "cs-2", name: `Deep well, ${barangay} hall`, letter: "C", safety: "boil", checked_at: null, status: null },
       { id: "cs-3", name: "Rainwater tank, daycare", letter: "E", safety: "washing", checked_at: null, status: null },
     ],
   };
 }
 
-// MOCK: the open event every affected barangay shares (TP-2026-031 in the wireframes).
+// MOCK: the open event every affected barangay shares (PIA-2026-031 in the wireframes).
 export const EVENT_DISRUPTION_ID = "3f1c2a40-9b7e-4c1a-8d2e-5a6b7c8d9e01";
 
-const NO_DISRUPTION: DisruptionDetail = {
-  disruption_id: null, restored_at: null,
-  cause: null, started_at: null, window_start: null, window_end: null, likely_at: null,
-  heads_up_from: null, updated_at: todayAt(8), next_update_at: todayAt(10),
-};
+// MOCK: every time below is computed when called (never at module load), relative to the phone's clock,
+// so a tab left open past midnight isn't stale and "now" always sits before the restore window during a demo.
+function noDisruption(): DisruptionDetail {
+  return {
+    disruption_id: null, restored_at: null,
+    cause: null, started_at: null, window_start: null, window_end: null, likely_at: null,
+    heads_up_from: null, updated_at: fromNow(-0.5), next_update_at: fromNow(2),
+  };
+}
 
-const TURBIDITY_OUTAGE: DisruptionDetail = {
-  disruption_id: EVENT_DISRUPTION_ID, restored_at: null,
-  // MOCK: window is relative to the phone's clock so "now" always sits before it during a demo.
-  cause: "turbidity", started_at: fromNow(-3.5), updated_at: fromNow(-0.5),
-  window_start: fromNow(8), window_end: fromNow(11), likely_at: fromNow(9.5),
-  next_update_at: fromNow(2), heads_up_from: null,
-};
+/** The sample turbidity outage. The resident screens and the LGU / operator mocks all read this one. */
+export function turbidityOutage(): DisruptionDetail {
+  return {
+    disruption_id: EVENT_DISRUPTION_ID, restored_at: null,
+    cause: "turbidity", started_at: fromNow(-3.5), updated_at: fromNow(-0.5),
+    window_start: fromNow(8), window_end: fromNow(11), likely_at: fromNow(9.5),
+    next_update_at: fromNow(2), heads_up_from: null,
+  };
+}
 
-const HEADS_UP: DisruptionDetail = {
-  ...NO_DISRUPTION, disruption_id: EVENT_DISRUPTION_ID, cause: "turbidity", heads_up_from: todayAt(2, 0, 1),
-};
+function headsUp(): DisruptionDetail {
+  return { ...noDisruption(), disruption_id: EVENT_DISRUPTION_ID, cause: "turbidity", heads_up_from: fromNow(2) };
+}
 
-const LOW_RIVER: DisruptionDetail = {
-  disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
-  cause: "drought", started_at: fromNow(-2.5), updated_at: fromNow(-0.5), // MOCK: relative to now, see above
-  window_start: fromNow(9), window_end: fromNow(12), likely_at: fromNow(10),
-  next_update_at: fromNow(2), heads_up_from: null,
-};
+function lowRiver(): DisruptionDetail {
+  return {
+    disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
+    cause: "drought", started_at: fromNow(-2.5), updated_at: fromNow(-0.5),
+    window_start: fromNow(9), window_end: fromNow(12), likely_at: fromNow(10),
+    next_update_at: fromNow(2), heads_up_from: null,
+  };
+}
 
 // The predictor is system-wide (spec 02, scope: "system"): every intake feeds Kulador and the
 // network is blended (WSP pp.12, 15), so one signal level reaches all 26 barangays (spec 03).
@@ -177,35 +186,50 @@ const LOW_RIVER: DisruptionDetail = {
 type SystemScenario = "turbidity_outage" | "heads_up" | "low_river" | "normal";
 const DEMO_SYSTEM: SystemScenario = "turbidity_outage";
 
-const SYSTEM: Record<SystemScenario, { signal_level: number; detail: DisruptionDetail }> = {
-  turbidity_outage: { signal_level: 4, detail: TURBIDITY_OUTAGE },
-  heads_up: { signal_level: 2, detail: HEADS_UP },
-  low_river: { signal_level: 3, detail: LOW_RIVER },
-  normal: { signal_level: 0, detail: NO_DISRUPTION },
-};
+function systemFor(scenario: SystemScenario): { signal_level: number; detail: DisruptionDetail } {
+  switch (scenario) {
+    case "turbidity_outage": return { signal_level: 4, detail: turbidityOutage() };
+    case "heads_up": return { signal_level: 2, detail: headsUp() };
+    case "low_river": return { signal_level: 3, detail: lowRiver() };
+    case "normal": return { signal_level: 0, detail: noDisruption() };
+  }
+}
 
 // Per-barangay differences come only after allocation: a barangay whose residents confirmed
 // water is back (spec 06) shows the resolved state. Payao demos "Water's back" (wireframe p.6).
-const RESOLVED: Record<string, DisruptionDetail> = {
-  payao: { ...TURBIDITY_OUTAGE, updated_at: todayAt(17, 5), restored_at: todayAt(17, 5) },
-};
+function resolvedFor(barangayId: string): DisruptionDetail | undefined {
+  if (barangayId !== "payao") return undefined;
+  const restoredAt = fromNow(-0.5);
+  return { ...turbidityOutage(), updated_at: restoredAt, restored_at: restoredAt };
+}
 
-/** MOCK: stands in for Dev A's status endpoint. */
+/** The "no disruption" detail, for the live mapper when the server has no open disruption. */
+export const noDisruptionDetail = noDisruption;
+
+/** Seed-based sources, storage plan and captain round: still sample data in live mode (no backend for them yet). */
+export function mockExtras(barangayId: string, cause: Cause | null): Pick<BarangaySnapshot, "sources" | "storage" | "captain"> | null {
+  const barangay = BARANGAYS.find((b) => b.barangay_id === barangayId);
+  if (!barangay) return null;
+  return { sources: sourcesFor(barangayId, cause), storage: STORAGE, captain: captainFor(barangay.name) };
+}
+
+/** MOCK: stands in for Dev A's status endpoint (used only when the backend isn't configured). */
 export function mockSnapshot(barangayId: string): BarangaySnapshot | null {
   const barangay = BARANGAYS.find((b) => b.barangay_id === barangayId);
   if (!barangay) return null;
-  const system = SYSTEM[DEMO_SYSTEM];
-  const resolved = DEMO_SYSTEM === "turbidity_outage" ? RESOLVED[barangayId] : undefined;
+  const system = systemFor(DEMO_SYSTEM);
+  const resolved = DEMO_SYSTEM === "turbidity_outage" ? resolvedFor(barangayId) : undefined;
+  const detail = resolved ?? system.detail;
   return {
     status: {
       barangay_id: barangayId,
       signal_level: resolved ? 0 : system.signal_level,
       last_synced_at: new Date().toISOString(),
     },
-    detail: resolved ?? system.detail,
+    detail,
     // The sample scenario is an observed outage at signal 3-4 (the server rule, specs/03).
     interruption_observed: !resolved && system.signal_level >= 3,
-    sources: sourcesFor(barangayId, (resolved ?? system.detail).cause),
+    sources: sourcesFor(barangayId, detail.cause),
     storage: STORAGE,
     captain: captainFor(barangay.name),
   };
@@ -230,24 +254,27 @@ export interface IntakeReading {
 }
 
 // MOCK: operator dashboard (spec 01 seed data + spec 02 detector output, once built).
+// Every time here is relative to the same sample outage the resident and LGU mocks use (turbidityOutage()),
+// so the three roles tell one story. Evaluated at module load, which is fine for a staff screen opened fresh.
+const OUTAGE = turbidityOutage();
 export const OPERATOR = {
   shift_name: "R. Abella",
   shift_hours: "5 AM–1 PM",
-  event_id: "TP-2026-031",
-  last_logged_at: todayAt(7),
+  event_id: "PIA-2026-031",
+  last_logged_at: fromNow(-1),
   latest: {
     kulador: { turbidity_ntu: 620, plant_status: "degraded", treated_ntu: 3.8, clarifier_inflow_lps: 31, reservoir_pct: 58 },
     masacpasac: { turbidity_ntu: 14, plant_status: "normal", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
     caramayon_1: { turbidity_ntu: 540, plant_status: "shutdown", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
     caramayon_2: { turbidity_ntu: 38, plant_status: "normal", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
   } satisfies Record<IntakeId, IntakeReading>,
-  over_since: todayAt(2, 40),
+  over_since: fromNow(-5.5), // the raw reading crossed the limit before the operator confirmed
   reservoir_falling_per_hour: 4,
-  rain_updated_at: todayAt(8),
-  rain_since: todayAt(22, 0, -1),
+  rain_updated_at: fromNow(-0.5),
+  rain_since: fromNow(-10),
   rain_total_mm: 39,
   dry_spell_days: 0,
-  // Hourly raw turbidity per intake, 8 AM yesterday → 8 AM today (25 points).
+  // Hourly raw turbidity per intake, the 24 hours up to now (25 points).
   turbidity_series: {
     kulador: [18, 17, 19, 18, 20, 19, 18, 17, 19, 20, 22, 21, 24, 30, 45, 95, 180, 330, 470, 590, 640, 655, 650, 635, 620],
     masacpasac: [4, 4, 5, 4, 4, 5, 4, 4, 5, 5, 6, 6, 7, 8, 10, 12, 14, 15, 16, 16, 15, 15, 14, 14, 14],
@@ -256,26 +283,21 @@ export const OPERATOR = {
   } satisfies Record<IntakeId, number[]>,
   // Hourly rainfall in mm over the same 24 hours.
   rain_series: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 12, 10, 8, 4, 1, 0, 0, 0, 0],
-  series_end: todayAt(8),
+  series_end: fromNow(0),
   detector: {
     matched: 3,
     total: 3,
-    confirmed_at: todayAt(5, 48),
+    confirmed_at: OUTAGE.started_at!,
     rain_mm: 39,
     rain_hours: 6,
     clarifier_from: 46.3,
     clarifier_to: 31,
     low_source: { n: 0, total: 3 },
     repair: { n: 0, total: 2 },
-    window_start: todayAt(16),
-    window_end: todayAt(19),
-    likely_at: todayAt(17, 30),
-    next_update_at: todayAt(10),
-    remind_at: todayAt(9, 45),
+    window_start: OUTAGE.window_start!,
+    window_end: OUTAGE.window_end!,
+    likely_at: OUTAGE.likely_at!,
+    next_update_at: OUTAGE.next_update_at,
+    remind_at: fromNow(1.75),
   },
-  early_warnings: [
-    { date: "14 Aug", cause: "turbidity" as const, notice: "2 h 05 m" },
-    { date: "2 Jul", cause: "repair" as const, notice: "1 day" },
-    { date: "20 May", cause: "low_source" as const, notice: "3 days" },
-  ],
 };

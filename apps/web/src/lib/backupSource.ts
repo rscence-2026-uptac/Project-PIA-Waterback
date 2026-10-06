@@ -9,17 +9,21 @@ import type { SeedSource } from "../data/seedSources";
 // barangay is dry too (WSP pp.12, 15). Same list as isSystemWide() in ranking.ts.
 const SYSTEM_WIDE: Cause[] = ["turbidity", "drought"];
 
+// Same as isNetworkDependent() in ranking.ts: fails along with the CWD network.
+const networkDependent = (s: SeedSource) => s.network_dependent || s.type === "neighboring_barangay";
+
 export function rankSeedSources(rows: SeedSource[], cause: Cause | null): SeedSource[] {
+  const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
   return rows
     .filter((s) => s.active)
-    .filter((s) => !(s.type === "neighboring_barangay" && cause !== null && SYSTEM_WIDE.includes(cause)))
+    .filter((s) => !(networkDependent(s) && cause !== null && SYSTEM_WIDE.includes(cause)))
+    // Reachable first (within the 30-min JMP round trip), then safety, travel, cost: Dev A's order.
     .sort((a, b) =>
-      // Dev A: reachable first (round trip within the JMP benchmark), then safety, time, cost, id.
-      (Number(a.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN) - Number(b.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN))
+      (Number(a.travel_minutes > jmp) - Number(b.travel_minutes > jmp))
       || (b.safety_score - a.safety_score)
       || (a.travel_minutes - b.travel_minutes)
       || (a.cost_php_per_unit - b.cost_php_per_unit)
-      || a.id.localeCompare(b.id));
+      || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 // UI wording for a safety score. Thresholds are ours, not Dev A's rubric: 0.8+ is treated or sealed

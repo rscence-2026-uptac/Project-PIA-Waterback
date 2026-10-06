@@ -50,16 +50,22 @@ function markDone(disruptionId: string, step: Step) {
 
 /** Whether the UI may offer a step yet (use this to disable the Deploy / Notify buttons). */
 export function canRun(disruptionId: string, fn: Exclude<EdgeFn, "confirm-allocation">): boolean {
-  return fn === "deploy-response" ? isDone(disruptionId, "allocated") : isDone(disruptionId, "deployed");
+  if (fn === "deploy-response") return isDone(disruptionId, "allocated");
+  // The real backend sets the disruption to `deployed` as soon as confirm-allocation succeeds, and that is all
+  // notify-residents needs (supabase/functions/README.md). deploy-response (a specific source) is not required first.
+  return isDone(disruptionId, "deployed") || isDone(disruptionId, "allocated");
 }
 
-/** Single seam to Supabase. Maps 409 to StepOutOfOrder and a missing backend to BackendNotConnected. */
-async function callEdge(fn: EdgeFn, body: unknown): Promise<void> {
+/**
+ * Single seam to Supabase. Not live -> BackendNotConnected. A 409 (a step skipped) -> StepOutOfOrder.
+ * Returns the server's JSON answer so callers can show real counts.
+ */
+async function callEdge<T = unknown>(fn: EdgeFn, body: unknown): Promise<T> {
   if (!isLive()) throw new BackendNotConnected(fn);
   try {
-    if (fn === "confirm-allocation") await postConfirmAllocation(body as AllocationDecision[]);
-    else if (fn === "deploy-response") await postDeployResponse(body as DeployResponse);
-    else await postNotifyResidents(body as NotificationPayload[]);
+    if (fn === "confirm-allocation") return (await postConfirmAllocation(body as AllocationDecision[])) as T;
+    if (fn === "deploy-response") return (await postDeployResponse(body as DeployResponse)) as T;
+    return (await postNotifyResidents(body as NotificationPayload[])) as T;
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) throw new StepOutOfOrder(fn);
     throw error;
@@ -67,11 +73,11 @@ async function callEdge(fn: EdgeFn, body: unknown): Promise<void> {
 }
 
 /** Saves the officer's order and writes the `deployed` event. */
-export async function confirmAllocation(decisions: AllocationDecision[]): Promise<void> {
+export async function confirmAllocation(decisions: AllocationDecision[]): Promise<{ allocations: number; events_written: number }> {
   z.array(AllocationDecision).min(1).parse(decisions);
-  // The server wants one row per barangay: drop the client-only consumer_type grouping field.
-  await callEdge("confirm-allocation", isLive() ? decisions.map((d) => ({ ...d, consumer_type: undefined })) : decisions);
+  const result = await callEdge<{ allocations: number; events_written: number }>("confirm-allocation", decisions);
   markDone(decisions[0].disruption_id, "allocated");
+  return result;
 }
 
 /** Records which ranked source was actually sent to a barangay. */
@@ -83,10 +89,15 @@ export async function deployResponse(response: DeployResponse): Promise<void> {
 }
 
 /** Sends the PWA push + Semaphore SMS and writes the `notified` event. */
-export async function notifyResidents(payloads: NotificationPayload[]): Promise<void> {
+export interface NotifyResult {
+  notified: { barangay_id: string; channels: string[]; sms_recipients: number }[];
+  sms?: { mode?: string; planned?: number; sent?: number; failed?: number };
+}
+export async function notifyResidents(payloads: NotificationPayload[]): Promise<NotifyResult> {
   z.array(NotificationPayload).min(1).parse(payloads);
   const disruptionId = payloads[0].disruption_id;
   if (!isLive() && !canRun(disruptionId, "notify-residents")) throw new StepOutOfOrder("notify-residents");
-  await callEdge("notify-residents", payloads);
+  const result = await callEdge<NotifyResult>("notify-residents", payloads);
   markDone(disruptionId, "notified");
+  return result;
 }

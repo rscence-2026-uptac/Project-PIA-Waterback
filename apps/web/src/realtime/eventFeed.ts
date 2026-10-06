@@ -33,12 +33,15 @@ function serverState() {
 }
 
 function applyToServer(event: RealtimeEvent) {
-  const row = event.barangay_id ? serverState().get(event.barangay_id) : undefined;
-  if (!row) return;
-  row.last_event_at = event.occurred_at;
-  if (event.event_type === "resident_confirmed") row.confirmed = true;
-  else row.status = event.event_type;
-  if (event.event_type === "resolved") row.signal_level = 0;
+  // A system-wide event (NULL barangay_id) applies to every row.
+  const rows = event.barangay_id === null ? [...serverState().values()] : [serverState().get(event.barangay_id)];
+  for (const row of rows) {
+    if (!row) continue;
+    row.last_event_at = event.occurred_at;
+    if (event.event_type === "resident_confirmed") row.confirmed = true;
+    else row.status = event.event_type;
+    if (event.event_type === "resolved") row.signal_level = 0;
+  }
 }
 
 /** Current status for every served barangay. Fails when offline, like a real fetch. */
