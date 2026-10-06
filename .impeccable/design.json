@@ -1,0 +1,473 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-06T07:12:44Z",
+  "title": "Design System: Project PIA",
+  "extensions": {
+    "colorMeta": {
+      "water": {
+        "role": "primary",
+        "displayName": "River Blue",
+        "canonical": "#248dc5",
+        "oklch": "oklch(61.2% 0.124 238.1)",
+        "tonalRamp": [
+          "#000c26",
+          "#002a4b",
+          "#004b74",
+          "#006e9f",
+          "#3192c9",
+          "#68b8ea",
+          "#95dbff",
+          "#b9f8ff"
+        ]
+      },
+      "tide": {
+        "role": "primary",
+        "displayName": "Deep Tide",
+        "canonical": "#1a6e9c",
+        "oklch": "oklch(51.3% 0.105 238.8)",
+        "tonalRamp": [
+          "#000c22",
+          "#002a46",
+          "#054a6d",
+          "#256d97",
+          "#4791c0",
+          "#76b6e1",
+          "#a0d9ff",
+          "#c2f6ff"
+        ]
+      },
+      "sky": {
+        "role": "secondary",
+        "displayName": "Clear Sky",
+        "canonical": "#a3d0e8",
+        "oklch": "oklch(83.4% 0.058 231.6)",
+        "tonalRamp": [
+          "#000d17",
+          "#0f2a37",
+          "#294a5a",
+          "#466c7f",
+          "#6690a6",
+          "#8eb4c8",
+          "#b5d7e9",
+          "#d5f4ff"
+        ]
+      },
+      "coral": {
+        "role": "tertiary",
+        "displayName": "Soft Coral",
+        "canonical": "#f4846c",
+        "oklch": "oklch(73.2% 0.142 33.2)",
+        "tonalRamp": [
+          "#230000",
+          "#490e03",
+          "#732b1c",
+          "#9f4836",
+          "#ca6a55",
+          "#ec937f",
+          "#ffb9a7",
+          "#ffd9c8"
+        ]
+      },
+      "coral-wash": {
+        "role": "tertiary",
+        "displayName": "Coral Wash",
+        "canonical": "#fdebe6",
+        "oklch": "oklch(95.3% 0.021 36.0)",
+        "tonalRamp": [
+          "#100908",
+          "#2d2422",
+          "#4e423f",
+          "#70625f",
+          "#958581",
+          "#b9aaa6",
+          "#dbceca",
+          "#f8ebe8"
+        ]
+      },
+      "coral-deep": {
+        "role": "tertiary",
+        "displayName": "Ember",
+        "canonical": "#b23f2a",
+        "oklch": "oklch(52.6% 0.154 32.5)",
+        "tonalRamp": [
+          "#230000",
+          "#490e04",
+          "#732a1d",
+          "#9f4837",
+          "#ca6956",
+          "#ec9380",
+          "#ffb9a8",
+          "#ffd9c9"
+        ]
+      },
+      "foam": {
+        "role": "neutral",
+        "displayName": "Foam",
+        "canonical": "#fdfdfd",
+        "oklch": "oklch(99.4% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#454545",
+          "#666666",
+          "#898989",
+          "#aeaeae",
+          "#d1d1d1",
+          "#eeeeee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Deep Current",
+        "canonical": "#0d2e42",
+        "oklch": "oklch(28.8% 0.053 239.1)",
+        "tonalRamp": [
+          "#010d17",
+          "#142937",
+          "#2f485a",
+          "#4c6a7f",
+          "#6d8ea5",
+          "#94b3c8",
+          "#bad5e9",
+          "#d9f3ff"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Slate Current",
+        "canonical": "#34505f",
+        "oklch": "oklch(41.5% 0.042 232.5)",
+        "tonalRamp": [
+          "#020d14",
+          "#172933",
+          "#324854",
+          "#506a79",
+          "#718e9e",
+          "#98b2c1",
+          "#bdd5e3",
+          "#dcf2ff"
+        ]
+      },
+      "mist": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "#eef6fb",
+        "oklch": "oklch(96.9% 0.011 234.8)",
+        "tonalRamp": [
+          "#090c0d",
+          "#23272a",
+          "#414649",
+          "#61676b",
+          "#838a8f",
+          "#a8afb3",
+          "#ccd2d6",
+          "#eaeff3"
+        ]
+      },
+      "frost": {
+        "role": "neutral",
+        "displayName": "Frost",
+        "canonical": "#f4f9fc",
+        "oklch": "oklch(97.9% 0.007 233.6)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#242728",
+          "#424647",
+          "#636769",
+          "#858a8c",
+          "#aaafb1",
+          "#ced2d4",
+          "#eceff1"
+        ]
+      },
+      "haze": {
+        "role": "neutral",
+        "displayName": "Haze",
+        "canonical": "#d3e6f1",
+        "oklch": "oklch(91.4% 0.025 233.0)",
+        "tonalRamp": [
+          "#050c10",
+          "#1e282e",
+          "#3a474e",
+          "#596971",
+          "#7b8c96",
+          "#a1b1ba",
+          "#c5d3dc",
+          "#e4f1f8"
+        ]
+      },
+      "ink-raised": {
+        "role": "neutral",
+        "displayName": "Raised Current",
+        "canonical": "#1d4560",
+        "oklch": "oklch(37.5% 0.065 241.0)",
+        "tonalRamp": [
+          "#000d1a",
+          "#0f293a",
+          "#2a495f",
+          "#466b85",
+          "#668eac",
+          "#8fb3cf",
+          "#b5d6ef",
+          "#d5f3ff"
+        ]
+      },
+      "water-murky": {
+        "role": "neutral",
+        "displayName": "Murky Water",
+        "canonical": "#4f8eac",
+        "oklch": "oklch(61.7% 0.079 230.5)",
+        "tonalRamp": [
+          "#000e1b",
+          "#002b3c",
+          "#194b61",
+          "#356e88",
+          "#5592af",
+          "#81b7d2",
+          "#a9d9f2",
+          "#caf6ff"
+        ]
+      },
+      "water-cloudy": {
+        "role": "neutral",
+        "displayName": "Cloudy Water",
+        "canonical": "#93a3a8",
+        "oklch": "oklch(70.4% 0.020 218.5)",
+        "tonalRamp": [
+          "#060c0e",
+          "#1f282b",
+          "#3c474b",
+          "#5b696d",
+          "#7d8c91",
+          "#a3b1b5",
+          "#c7d4d8",
+          "#e5f1f5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Presentation and overview headlines only."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Every time a resident waits on; metric values. Tabular."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The one-sentence state on each screen."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section and card titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Resident copy, never below 16px."
+      },
+      "body-staff": {
+        "displayName": "Body (staff)",
+        "purpose": "CWD and LGU dashboard copy."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Chips, buttons, field labels, stamps. Sentence case."
+      }
+    },
+    "shadows": [
+      {
+        "name": "floating-card",
+        "value": "0 12px 32px -12px rgba(13, 46, 66, 0.45)",
+        "purpose": "Card floating over moving water on the Water's back screen."
+      },
+      {
+        "name": "toast",
+        "value": "0 12px 28px -10px rgba(13, 46, 66, 0.5)",
+        "purpose": "Confirmation toasts rising from the bottom edge."
+      },
+      {
+        "name": "device-frame",
+        "value": "0 30px 60px -30px rgba(13, 46, 66, 0.45)",
+        "purpose": "Phone mockups on presentation boards only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Entrances, fills, press feedback."
+      },
+      {
+        "name": "ease-in-out",
+        "value": "cubic-bezier(0.77, 0, 0.175, 1)",
+        "purpose": "Drop-gauge level changes (800ms)."
+      },
+      {
+        "name": "ease-drawer",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "Toasts and sheets from an edge (300ms in, 200ms out)."
+      },
+      {
+        "name": "press",
+        "value": "scale(0.97) 140ms ease-out",
+        "purpose": "Every tappable control."
+      },
+      {
+        "name": "ripple",
+        "value": "translateX 5s linear infinite",
+        "purpose": "Gauge surface while water flows; paused when it stops; removed under reduced motion."
+      },
+      {
+        "name": "flood",
+        "value": "translateY(100%) to 0, 900ms ease-out",
+        "purpose": "Water's back moment only."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "390px"
+      },
+      {
+        "name": "dashboard-container",
+        "value": "1360px"
+      },
+      {
+        "name": "overview-container",
+        "value": "1240px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action per role per state.",
+      "html": "<button class=\"ds-btn-primary\">Find water nearby</button>",
+      "css": ".ds-btn-primary{background:#1a6e9c;color:#fdfdfd;font:700 17px 'Atkinson Hyperlegible',system-ui,sans-serif;min-height:56px;padding:0 20px;border:none;border-radius:16px;cursor:pointer;transition:transform 140ms cubic-bezier(0.23,1,0.32,1)}.ds-btn-primary:active{transform:scale(0.97)}.ds-btn-primary:focus-visible{outline:3px solid #248dc5;outline-offset:2px}"
+    },
+    {
+      "name": "Soft Button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Secondary actions, and actions inside dark panels.",
+      "html": "<button class=\"ds-btn-soft\">Adjust</button>",
+      "css": ".ds-btn-soft{background:#a3d0e8;color:#0d2e42;font:700 16px 'Atkinson Hyperlegible',system-ui,sans-serif;min-height:52px;padding:0 18px;border:none;border-radius:16px;cursor:pointer;transition:transform 140ms cubic-bezier(0.23,1,0.32,1)}.ds-btn-soft:active{transform:scale(0.97)}.ds-btn-soft:focus-visible{outline:3px solid #248dc5;outline-offset:2px}"
+    },
+    {
+      "name": "Status Chips",
+      "kind": "chip",
+      "refersTo": "chip-interrupted",
+      "description": "State in one word, always with ink text on coral.",
+      "html": "<span class=\"ds-chip ds-chip-cut\">Interrupted</span> <span class=\"ds-chip ds-chip-flow\">Flowing</span> <span class=\"ds-chip ds-chip-heads\">Heads-up</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;font:700 14px 'Atkinson Hyperlegible',system-ui,sans-serif}.ds-chip-cut{background:#f4846c;color:#0d2e42}.ds-chip-flow{background:#a3d0e8;color:#0d2e42}.ds-chip-heads{background:#0d2e42;color:#fdfdfd}"
+    },
+    {
+      "name": "Reading Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Foam field inside a mist panel, no stroke.",
+      "html": "<div class=\"ds-field-wrap\"><label class=\"ds-label\" for=\"ds-ntu\">Raw turbidity (NTU)</label><input id=\"ds-ntu\" class=\"ds-input\" value=\"620\"></div>",
+      "css": ".ds-field-wrap{display:flex;flex-direction:column;gap:6px;padding:16px;background:#eef6fb;border-radius:20px}.ds-label{font:700 14px 'Atkinson Hyperlegible',system-ui,sans-serif;color:#0d2e42}.ds-input{min-height:48px;padding:0 14px;border:none;border-radius:16px;background:#fdfdfd;color:#0d2e42;font:400 16px 'Atkinson Hyperlegible',system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-input:focus-visible{outline:3px solid #248dc5;outline-offset:2px}"
+    },
+    {
+      "name": "Metric Tile",
+      "kind": "card",
+      "refersTo": "metric-tile",
+      "description": "Dashboard reading on a sky tile.",
+      "html": "<div class=\"ds-metric\"><span class=\"ds-metric-l\">Clarifier flow</span><span class=\"ds-metric-v\">31 <small>L/s</small></span><span class=\"ds-metric-s\">Capacity ≈ 46 L/s</span></div>",
+      "css": ".ds-metric{display:flex;flex-direction:column;gap:6px;padding:20px 22px;border-radius:24px;background:#a3d0e8;color:#0d2e42;font-family:'Atkinson Hyperlegible',system-ui,sans-serif;max-width:240px}.ds-metric-l{font-weight:700;font-size:14px}.ds-metric-v{font:750 36px/1.05 'Bricolage Grotesque',system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-metric-v small{font-size:18px}.ds-metric-s{font-size:14px}"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Resident three-tab bar.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-tab ds-cur\" href=\"#\">Status</a><a class=\"ds-tab\" href=\"#\">Sources</a><a class=\"ds-tab\" href=\"#\">History</a></nav>",
+      "css": ".ds-nav{display:flex;background:#eef6fb;border-radius:20px;padding:0 8px;max-width:390px}.ds-tab{flex:1;display:flex;align-items:center;justify-content:center;min-height:56px;font:400 13px 'Atkinson Hyperlegible',system-ui,sans-serif;color:#34505f;text-decoration:none}.ds-tab.ds-cur{color:#0d2e42;font-weight:700}.ds-tab:focus-visible{outline:3px solid #248dc5;outline-offset:2px}"
+    },
+    {
+      "name": "Drop Gauge",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Signature: the brand drop as a water-level gauge; level, clarity and stillness carry state.",
+      "html": "<div class=\"ds-drop\"><div class=\"ds-drop-v\"><div class=\"ds-drop-w\"></div></div><svg class=\"ds-drop-rim\" viewBox=\"0 0 160 210\"><path d=\"M80 6 C80 6 8 90 8 136 A72 72 0 0 0 152 136 C152 90 80 6 80 6 Z\"/></svg></div>",
+      "css": ".ds-drop{position:relative;width:160px;height:210px}.ds-drop-v{position:absolute;inset:0;clip-path:path('M80 6 C80 6 8 90 8 136 A72 72 0 0 0 152 136 C152 90 80 6 80 6 Z');background:#eef6fb}.ds-drop-w{position:absolute;inset:0;background:#248dc5;transform:translateY(20%);transition:transform 800ms cubic-bezier(0.77,0,0.175,1),background-color 600ms ease}.ds-drop:hover .ds-drop-w{transform:translateY(86%);background:#93a3a8}.ds-drop-rim{position:absolute;inset:0;overflow:visible}.ds-drop-rim path{fill:none;stroke:#0d2e42;stroke-width:3}@media (prefers-reduced-motion:reduce){.ds-drop-w{transition:background-color 300ms ease}}"
+    },
+    {
+      "name": "Alert Card",
+      "kind": "card",
+      "refersTo": "alert-card",
+      "description": "Interruption summary on coral wash.",
+      "html": "<div class=\"ds-alert\"><span class=\"ds-alert-i\">!</span><div><strong>Piped water is off</strong><span>Since 5:48 AM · river too muddy to treat</span></div></div>",
+      "css": ".ds-alert{display:flex;gap:12px;align-items:center;padding:16px;border-radius:24px;background:#fdebe6;color:#0d2e42;font-family:'Atkinson Hyperlegible',system-ui,sans-serif;max-width:360px}.ds-alert-i{width:44px;height:44px;border-radius:14px;background:#f4846c;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}.ds-alert strong{display:block;font:700 18px 'Bricolage Grotesque',system-ui,sans-serif}.ds-alert span{font-size:14px;color:#34505f}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Drop Is the Status",
+    "overview": "Tubig Patas is opened on a stressful day, often on a cheap Android phone in bright outdoor light, sometimes by an elderly resident, sometimes by a purok captain standing at a dry faucet. The system answers one question before any word is read: how much water can I count on right now? It answers with a single shape, the brand's own water drop, used as a gauge. Its level is how much water you can rely on, its clarity is whether the source is clean, and its stillness is whether anything is flowing. Every screen, in every role, leads with state and follows with exactly one next step.\n\nThe world is light, cool and calm: a near-white ground, soft sky fields, deep ink type, and one saturated blue that is reserved for water itself. Warmth enters only when something is wrong, as a soft coral that complements the blue instead of shouting over it. Density is low for residents (one screen, one sentence, one action) and moderate for CWD and LGU staff, who get more data but the same calm surfaces. Personality lives in type and in the water, not in decoration.\n\nSurfaces are separated by tone, never by lines. Panels are soft fills on the ground, darker fills sit inside lighter ones, and the deepest ink panels carry the moments that ask for a decision. Motion is spent almost entirely on water: it rises, ripples, clouds and goes still, and everything else answers taps quickly and identically.",
+    "keyCharacteristics": [
+      "The water drop is both logo and status gauge; level, clarity and stillness always agree with the words beside it.",
+      "One reserved blue for water, one coral for interruption, everything else ink, sky, mist and foam.",
+      "Fills and spacing separate surfaces; no outline borders.",
+      "Large, tabular display numerals for every time a resident waits on.",
+      "One sentence and at most one primary action per role per state."
+    ],
+    "rules": [
+      {
+        "name": "The Water Only Rule",
+        "body": "River Blue (#248dc5) only ever paints water. If it isn't water, a level of water, or time until water, it is tide, sky or ink.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Warm Colour Rule",
+        "body": "Coral is the only warm hue in the system and it means one thing: supply is interrupted or over a limit. No decorative warmth, no red, no brown.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink-on-Coral Rule",
+        "body": "Text on coral is always Deep Current, never white.",
+        "section": "colors"
+      },
+      {
+        "name": "The Waiting Number Rule",
+        "body": "Any time a resident is waiting on is set in Bricolage at numeral size. It is the second thing the eye lands on, after the drop.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence-Case Rule",
+        "body": "No uppercase labels and no tracked-out eyebrows. Headings carry their own weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Line Rule",
+        "body": "Surfaces are separated by fill and spacing, never by 1–1.5px borders, hairline dividers or outline buttons. If two areas need separating, change the fill one step (foam → mist → sky) or add space.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Decision Is Dark Rule",
+        "body": "A full ink panel means \"this is where you decide or act\". Don't spend it on information.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do lead every screen with state: drop gauge, status chip, one-sentence headline, then the waiting number.",
+      "Do keep resident text at 16–17px or larger and every touch target at least 44px (primary actions 52–56px).",
+      "Do separate surfaces with fills (foam → mist → sky → ink) and spacing.",
+      "Do pair every coloured status with an icon and a word; colour never carries state alone.",
+      "Do use ink text on coral and on sky; use foam text on tide and ink.",
+      "Do make motion mean something about water, and provide a reduced-motion version that fades instead of moving."
+    ],
+    "donts": [
+      "Don't use River Blue (#248dc5) for anything that isn't water.",
+      "Don't draw 1–1.5px borders, hairline dividers, table rules or outline buttons.",
+      "Don't use brown, red or any warm colour other than coral.",
+      "Don't put white text on coral or on River Blue below 24px.",
+      "Don't add streaks, leaderboards, points or surprise rewards.",
+      "Don't animate data that people read (charts, counters), pulse status badges, or run a seconds countdown.",
+      "Don't set labels in uppercase or add eyebrow text above headings."
+    ]
+  }
+}
