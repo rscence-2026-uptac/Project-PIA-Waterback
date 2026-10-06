@@ -43,8 +43,8 @@ Nine specs cover every P0 feature from the final concept. Write and lock all nin
 | 00 | `00-data-model.md` | Foundation: readings, disruptions, sources, continuity\_chains, allocations, event\_log tables | Dev A | none — build first |
 | 01 | `01-seed-data.md` | Foundation: CWD WSP constants, simulated July readings, Open-Meteo pull | Dev A (data sourced by Teammate 3) | 00 |
 | 02 | `02-disruption-predictor.md` | Prevention/Intervention: predict turbidity-risk and drought-risk probabilities via logistic regression; repair work stays operator-logged | Dev A | 00 |
-| 03 | `03-affected-area-mapping.md` | Intervention: which puroks/barangays are hit, including unpiped households | Dev A | 00, 02 |
-| 04 | `04-continuity-ranking.md` | Intervention: rank backup sources per purok, safety → time → cost | Dev A | 00, 03 |
+| 03 | `03-affected-area-mapping.md` | Intervention: which barangays are hit, including unpiped households | Dev A | 00, 02 |
+| 04 | `04-continuity-ranking.md` | Intervention: rank backup sources per barangay, safety → time → cost | Dev A | 00, 03 |
 | 05 | `05-operator-pwa.md` | Prevention + client shell: operator dashboard, resident/captain PWA, offline queue | Dev B | 00, 08 |
 | 06 | `06-allocation-and-notify.md` | Action: LGU allocation screen, resident notification (PWA + SMS), event log | Dev B (API from Dev A) | 02, 03, 04, 05, 08 |
 | 07 | `07-admin-dashboard.md` | Action: CDRRMO/partner dashboard, realtime subscription | Dev B | 06, 08 |
@@ -54,7 +54,7 @@ Each spec's acceptance criteria get checked against the seed data from `01-seed-
 
 ## Disruption predictor — model design
 
-**What it predicts.** Two independent probabilities per purok, not one multi-class label: `p_turbidity` (a turbidity-driven interruption within the next 24–48h) and `p_drought` (a drought-driven shortage within the next 7 days). Repair work stays out of the model entirely — it's operator-scheduled or mechanical, not forecastable from environmental readings, so it stays a manual log entry per spec 02.
+**What it predicts.** Two independent probabilities per barangay, not one multi-class label: `p_turbidity` (a turbidity-driven interruption within the next 24–48h) and `p_drought` (a drought-driven shortage within the next 7 days). Repair work stays out of the model entirely — it's operator-scheduled or mechanical, not forecastable from environmental readings, so it stays a manual log entry per spec 02.
 
 **Why two small models, not one big one.** The two failure modes run on different clocks (hours vs. weeks) and different drivers (rainfall/turbidity vs. reservoir trend/dry-spell length). Two independent binary models keep each one simple, fast to train, and easy to explain on stage: one number, one meaning — not "the model decided."
 
@@ -66,7 +66,7 @@ Each spec's acceptance criteria get checked against the seed data from `01-seed-
 
 **Training data — stated plainly.** Catbalogan has no public historical log of actual disruption events, and building one in 24 hours isn't possible. The model trains on a physics-informed synthetic dataset: a generator samples thousands of plausible rainfall/turbidity/reservoir trajectories — rainfall drawn from Open-Meteo's real historical distribution for Catbalogan, turbidity and reservoir response simulated with noise around the WSP's own real thresholds (turbidity >500 NTU forces a shutdown; the clarifier can't exceed 46 L/s) — and each simulated day is labeled by those same real thresholds. The model then learns a smoothed, continuous probability curve approaching that hard threshold instead of only firing at the cliff edge, which is the actual value ML adds over the WSP's own deterministic rule: an earlier, graded warning instead of a binary alarm. State this plainly if asked — synthetic but physically grounded, not real incident history; swapping in real incident logs later changes the training set, not the architecture.
 
-**Output → signal level** (reuses the PAGASA-style 0–4 scale from earlier sessions): p < 0.2 → Level 0 · 0.2–0.4 → Level 1 · 0.4–0.6 → Level 2 · 0.6–0.8 → Level 3 · p ≥ 0.8 → Level 4. A purok's overall signal is the higher of its two levels.
+**Output → signal level** (reuses the PAGASA-style 0–4 scale from earlier sessions): p < 0.2 → Level 0 · 0.2–0.4 → Level 1 · 0.4–0.6 → Level 2 · 0.6–0.8 → Level 3 · p ≥ 0.8 → Level 4. A barangay's overall signal is the higher of its two levels.
 
 **Acceptance criteria for spec 02:**
 

@@ -1,7 +1,7 @@
 # Spec: Disruption predictor
 
 ## What it does
-Outputs two independent probabilities per purok — `p_turbidity` (a turbidity-driven interruption within 24–48h) and `p_drought` (a drought-driven shortage within 7 days) — via two small L2-regularized logistic regression models, trained on a physics-informed synthetic dataset grounded in CWD's real 2022 WSP thresholds, mapped to a 0–4 signal level. Repair work is never predicted; it stays an operator-logged `disruptions.cause = "repair"` entry.
+Outputs two independent probabilities per barangay — `p_turbidity` (a turbidity-driven interruption within 24–48h) and `p_drought` (a drought-driven shortage within 7 days) — via two small L2-regularized logistic regression models, trained on a physics-informed synthetic dataset grounded in CWD's real 2022 WSP thresholds, mapped to a 0–4 signal level. Repair work is never predicted; it stays an operator-logged `disruptions.cause = "repair"` entry.
 
 ## Data contract
 ```ts
@@ -24,7 +24,7 @@ export const DroughtFeatures = z.object({
 });
 
 export const PredictorOutput = z.object({
-  purok_id: z.string(),
+  barangay_id: z.string(),
   p_turbidity: z.number().min(0).max(1),
   p_drought: z.number().min(0).max(1),
   signal_level: z.number().int().min(0).max(4), // max of the two levels below
@@ -47,8 +47,8 @@ Signal-level mapping (reused on both models, applied independently then combined
 - [ ] Trained and evaluated on a held-out 20% split of the synthetic set
 - [ ] Recall ≥ 0.85 on the positive class at the chosen threshold — tuned toward recall on purpose: a missed warning costs more than a false alarm here
 - [ ] Coefficients committed to the repo as human-readable JSON (`ml/predictor_coefficients.json`), never a pickled binary
-- [ ] A missing feature (sensor gap) drops the purok to the WSP's deterministic threshold rule rather than guessing, and sets `fallback_used: true`
-- [ ] `signal_level` for a purok equals the higher of `turbidity_level` and `drought_level`, never an average
+- [ ] A missing feature (sensor gap) drops the barangay to the WSP's deterministic threshold rule rather than guessing, and sets `fallback_used: true`
+- [ ] `signal_level` for a barangay equals the higher of `turbidity_level` and `drought_level`, never an average
 
 ## Out of scope
 - Multiclass cause classification beyond turbidity/drought (repair stays manual)
