@@ -9,7 +9,7 @@ export type Lang = "english" | "filipino" | "waray";
 export type SmsKey =
   | "sms.water_off" | "sms.sources" | "sms.stored" | "sms.water_back" | "sms.partner_ask" | "sms.partner_thanks"
   | "sms.water_off_no_store" | "sms.status_flowing" | "sms.thanks_ack" | "sms.not_registered" | "sms.not_in_demo"
-  | "sms.help" | "sms.no_active";
+  | "sms.help" | "sms.no_active" | "sms.heads_up_store_water" | "sms.heads_up_unserved";
 
 type Row = Record<Lang, string>;
 
@@ -80,6 +80,17 @@ export const SMS_ROWS: Record<SmsKey, Row> = {
     filipino: "PIA WATERBACK: Walang kailangang kumpirmahin sa {barangay} ngayon. Reply STATUS para sa update.",
     waray: "PIA WATERBACK: Waray pagtugot nga kumpirmaron ha {barangay} yana. Reply STATUS para ha update.",
   },
+  // Automatic heads-up (BEFORE any allocation): sent by disruption-monitor, see _shared/heads_up.ts. Filipino/Waray = DRAFTS, native review needed.
+  "sms.heads_up_store_water": { // served barangays. {litres} = 60 (4 people x 15 L per household)
+    english: "PIA WATERBACK: Water may stop in {barangay} from {when}. {cause}. Store {litres}L per home (4 people x 15L). Reply SRC for backup water.",
+    filipino: "PIA WATERBACK: Posibleng walang tubig sa {barangay} mula {when}. {cause}. Mag-ipon ng {litres}L kada bahay (4 tao x 15L). Reply SRC.",
+    waray: "PIA WATERBACK: Basin waray tubig ha {barangay} tikang {when}. {cause}. Pag-ipon {litres}L kada balay (4 ka tawo x 15L). Reply SRC.",
+  },
+  "sms.heads_up_unserved": { // barangays outside the CWD network that still have registered residents
+    english: "PIA WATERBACK: CWD outage expected from {when}. Refill stations near {barangay} may be busy. Store water if you can. Reply SRC.",
+    filipino: "PIA WATERBACK: May inaasahang putol ng CWD mula {when}. Maaaring siksikan ang refill station sa {barangay}. Mag-ipon kung kaya. Reply SRC.",
+    waray: "PIA WATERBACK: May kutob nga pagpatay han CWD tikang {when}. Basin damo tawo ha refill station ha {barangay}. Pag-ipon kon mahimo. Reply SRC.",
+  },
 };
 
 export const CAUSE_TEXT: Record<"turbidity" | "drought" | "repair", Row> = {
@@ -130,11 +141,32 @@ export function fmtClock(iso: string | null | undefined, fallback = "soon"): str
   return `${h12(p.h)}:${String(p.m).padStart(2, "0")}${p.h < 12 ? "AM" : "PM"}`;
 }
 /** "2PM" (hour only, rounded to nearest hour, to keep the SMS short) */
-function fmtHour(iso: string): string | null {
+export function fmtHour(iso: string): string | null {
   const p = manila(iso);
   if (!p) return null;
   const h = (p.h + (p.m >= 30 ? 1 : 0)) % 24;
   return `${h12(h)}${h < 12 ? "AM" : "PM"}`;
+}
+const WHEN_WORDS: Record<Lang, { today: string; tomorrow: string }> = {
+  english: { today: "today", tomorrow: "tomorrow" }, filipino: { today: "ngayon", tomorrow: "bukas" }, waray: { today: "yana", tomorrow: "buwas" },
+};
+/**
+ * Day + hour for a heads-up ("today 2PM", "tomorrow 2AM", "Sat 11AM"), relative to `ref` in Asia/Manila.
+ * More than 6 days away -> weekday would be ambiguous, so it falls back to `fallback`.
+ */
+export function fmtWhen(iso: string | null | undefined, ref: string, fallback = "soon", lang: Lang = "english"): string {
+  const w = WHEN_WORDS[lang]; // Filipino/Waray day words are DRAFTS (native review)
+  if (!iso) return fallback;
+  const t = Date.parse(iso), r = Date.parse(ref);
+  const hour = fmtHour(iso);
+  if (Number.isNaN(t) || Number.isNaN(r) || !hour) return fallback;
+  const tr = t + 30 * 60_000; // same nearest-hour rounding as fmtHour, so "12AM" lands on the right day
+  const day = (ms: number) => Math.floor((ms + MANILA_OFFSET_MS) / 86_400_000);
+  const diff = day(tr) - day(r);
+  if (diff <= 0) return `${w.today} ${hour}`;
+  if (diff === 1) return `${w.tomorrow} ${hour}`;
+  if (diff > 6) return fallback;
+  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(tr + MANILA_OFFSET_MS).getUTCDay()]} ${hour}`;
 }
 /** "11AM-2PM"; falls back to `fallback` when the disruption has no window yet. */
 export function fmtWindow(start: string | null | undefined, end: string | null | undefined, fallback = "later today"): string {
@@ -154,5 +186,5 @@ export const WORST_CASE: Record<string, string> = {
   window: "11AM-2PM", likely: "12:30PM", litres: "60",
   list: "A) Faucet, 6min, free. B) Bayani Refill, 9min, P25/20L. D) LGU truck 2PM",
   time: "10:00AM", diff: "25 min early", captain: "Liza", partner: "Bayani Refilling", letter: "B", n: "212",
-  source: "Bayani Refilling 2", keyword: "OPEN",
+  source: "Bayani Refilling 2", keyword: "OPEN", when: "tomorrow 11AM",
 };

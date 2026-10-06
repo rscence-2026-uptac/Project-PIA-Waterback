@@ -4,6 +4,7 @@ import type { ConsumerType } from "../../contracts/spec09";
 import { Icon, type IconName } from "../../ui/Icon";
 
 // hex mirrors the index.css tokens: Leaflet draws halos as SVG attributes, which can't read CSS variables.
+// eslint-disable-next-line react-refresh/only-export-components
 export const TYPE_LOOK: Record<ConsumerType, { icon: IconName; badge: string; pin: string; hex: string }> = {
   lgu: { icon: "building", badge: "bg-coral-deep text-foam", pin: "bg-coral-deep", hex: "#b23f2a" },
   residential: { icon: "home", badge: "bg-water text-foam", pin: "bg-water", hex: "#248dc5" },

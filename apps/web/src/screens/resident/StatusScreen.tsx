@@ -6,7 +6,8 @@ import type { DisruptionDetail, BarangaySnapshot } from "../../data/mock";
 import { useBarangay } from "../../lib/barangay";
 import { readSetting, subscribeSetting, writeSetting } from "../../lib/settings";
 import { formatShortTime, formatTime, formatWindow, minutesBetween } from "../../lib/time";
-import { dropLook, waterState, type WaterState } from "../../lib/waterState";
+import { snapshotWaterState } from "../../lib/snapshotState";
+import { dropLook, headsUpHeadlineKey, headsUpUrgency, type WaterState } from "../../lib/waterState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { Button, ButtonLink } from "../../ui/Button";
 import { DropGauge } from "../../ui/Drop";
@@ -14,6 +15,8 @@ import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { CostLabel, LiveStatusLabel, SafetyLabel, SimulatedLabel } from "../../ui/SourceBits";
 import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
+import { HeadsUpCard } from "../../ui/HeadsUpCard";
+import { likelyStart } from "../../lib/headsUp";
 import { ConnectionLine, ResidentHeader } from "./ResidentLayout";
 import { WaterBackView } from "./WaterBackView";
 
@@ -39,13 +42,14 @@ function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; sig
   const { detail } = snapshot;
   if (detail.restored_at) return <WaterBackView snapshot={snapshot} />;
 
-  const state = waterState(signalLevel, detail.cause);
+  const state = snapshotWaterState(snapshot, signalLevel);
   const needsPlan = state !== "flowing";
   const pipedOff = state === "interrupted" || state === "repair";
 
   return (
     <>
-      <StatusCard state={state} detail={detail} />
+      <StatusCard state={state} detail={detail} urgency={snapshot.heads_up_urgency ?? headsUpUrgency(signalLevel)} startAt={likelyStart(snapshot)} />
+      {state === "headsup" && <HeadsUpCard snapshot={snapshot} />}
       {pipedOff && detail.disruption_id && (
         <ConfirmWaterBack
           disruptionId={detail.disruption_id}
@@ -60,11 +64,17 @@ function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; sig
   );
 }
 
-function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDetail }) {
+function StatusCard({ state, detail, urgency, startAt }: {
+  state: WaterState;
+  detail: DisruptionDetail;
+  urgency: ReturnType<typeof headsUpUrgency>;
+  startAt: string | null;
+}) {
   const { t } = useCopy();
+  // A heads-up is a prediction: no cause line (it reads like an outage); the heads-up card below carries the time and the why.
   const sub =
     state === "flowing" ? t("state.flowing.sub")
-    : state === "headsup" && detail.heads_up_from ? t("state.headsup.sub", { time: formatShortTime(detail.heads_up_from) })
+    : state === "headsup" ? ""
     : detail.cause ? t(`cause.${detail.cause}`)
     : "";
   const hasWindow = (state === "interrupted" || state === "repair") && detail.window_start && detail.window_end;
@@ -75,9 +85,11 @@ function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDe
         <DropGauge look={dropLook(state, detail.cause)} width={72} className="shrink-0" />
         <div className="min-w-0">
           <h1 id="status-headline" className="text-[30px] leading-[1.05] tracking-[-0.03em] text-ink">
-            {t(`state.${state}.headline`)}
+            {state === "headsup"
+              ? t(headsUpHeadlineKey(urgency, startAt !== null), { time: startAt ? formatShortTime(startAt) : "" })
+              : t(`state.${state}.headline`)}
           </h1>
-          <p className="mt-2 text-ink-soft">{sub}</p>
+          {sub && <p className="mt-2 text-ink-soft">{sub}</p>}
         </div>
       </div>
 
@@ -214,11 +226,21 @@ function StoragePlanSection({ snapshot }: { snapshot: BarangaySnapshot }) {
   const litres = filledCount * storage.container_l;
   const totalSteps = storage.containers + 1; // alerts on + each container
   const doneSteps = 1 + filledCount;
+  const { detail } = snapshot;
+  const start = likelyStart(snapshot);
+  const timing = detail.disruption_id && !detail.restored_at
+    ? (snapshot.interruption_observed && detail.window_start && detail.window_end
+      ? t("storage.timing_window", { window: formatWindow(detail.window_start, detail.window_end) })
+      : start ? t("storage.timing_likely", { time: formatShortTime(start) }) : null)
+    : null;
 
   return (
     <section id="storage" className="mt-8 scroll-mt-4" aria-labelledby="storage-title">
       <h2 id="storage-title" className="text-[28px] leading-tight">{t("storage.title", { litres: target })}</h2>
       <p className="mt-1 text-ink-soft">{t("storage.household", { people: storage.people, per: storage.per_person_l })}</p>
+      {/* Derived, not sampled: the heads-up rule (60 L = 4 people x 15 L) and the disruption's likely time / window. */}
+      <p className="mt-1 text-[14px] text-ink-soft">{t("storage.rule", { litres: target, people: storage.people, per: storage.per_person_l })}</p>
+      {timing && <p className="mt-2 font-bold">{timing}</p>}
 
       <div className="mt-4 flex items-center justify-between text-[15px]">
         <span className="font-bold">{t("storage.steps", { done: doneSteps, total: totalSteps })}</span>

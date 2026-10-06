@@ -58,6 +58,18 @@ Why amended: recall 0.846 vs 0.85 is within the noise of the forecast-error assu
 - Non-event alarm rate (reported only): 21.7% with the oracle forecast, 49.0% with the honest forecast. In a wet month the alarm is on a lot; do not claim a low false-alarm rate there.
 - Drought model fires Jul 5-7 (p 0.83-0.86) on the outage-driven reservoir collapse. Frame it as a **supply shortage** alert, not a climatological drought.
 
+## How the warning helps each user
+The score is only useful if someone acts on it before the water gets bad. `drivers` says why, `operator_actions` says what the WSP already tells the plant to do. Lead times below are from `ml/reports/july_2026_timeline.json` (real TS `predict()`, hourly over the seed; reproduce with `EXPORT_TIMELINE=1 PGDATABASE=pia_dev npx vitest run export_timeline` in `supabase/tests/functions`).
+
+| user | what they get at signal >= 2 | what they can do with the lead time |
+|---|---|---|
+| Resident | the heads-up SMS/PWA message with the level and the ranked backup sources | store water and plan the day before the interruption, instead of finding the tap dry |
+| Barangay captain | the affected barangays and the heads-up | pre-position water trucks and tell vulnerable households first |
+| CWD operator | level, top driver ("41 mm of rain forecast in the next 48 h") and WSP-cited actions | pre-dose PAC/polymer and caustic soda at Kulador (WSP p.44), top up the 440 m3 reservoir (p.13), check Caramayon generator fuel (p.43); at level 4 be ready for the Caramayon I shut-off at >= 500 NTU (p.43) |
+| LGU / disaster office | a system-wide level and a conservation advisory (our recommendation, not in the WSP) | stage response and public messaging before the interruption |
+
+Lead time, July 2026 (simulated plant response, real rain, seeded forecast is a perfect-foresight upper bound): late-July wet spell, alarm Jul 19 19:00, first event Jul 21 22:00, **51 h** ahead. Jul 2 onset: 40 h but censored at the series start. Jul 8 onset: turbidity alarm from Jul 6 05:00 (**52 h**; the signal alarm from Jul 4 22:00 was partly the supply-shortage model, 83 h). Later onsets inside an alarm that is already on (Jul 11, 12, 23, 24, 26, 28) are not independent leads. The model, not this table, is the evidence: say "51 h before the late-July wet spell" and nothing larger.
+
 ## Fallback
 Missing input (no Kulador reading in the last 6 h, no rain rows, or no forecast) -> WSP deterministic rule, `fallback_used: true`. v3 needs only the latest reading, no 6-reading window. Missing forecast -> `forecast_source: "missing"`, turbidity uses the WSP fallback. Other values: `"seeded"`, `"live"`. Details: `supabase/functions/disruption-predictor/README.md`.
 

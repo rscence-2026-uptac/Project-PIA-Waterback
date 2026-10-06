@@ -26,10 +26,10 @@ Errors: 400 (`as_of`, `min_signal`, `disruption_id`), 404, 405, 500.
 - `{ "as_of": "2026-07-10T12:00:00+08:00" }` (as_of optional, default now; `"action":"run"` is the default). Runs the predictor. Signal >= 2 and no open disruption (status != resolved) -> inserts a `disruptions` row (`status: predicted`, `started_at = as_of`, cause = higher of turbidity/drought level, `p_*`, `signal_level`) and one system-wide `predicted` event (`barangay_id` NULL, actor `system`). If one is open: updates `p_*`, `signal_level`, `next_update_at` only (status and cause are never changed here). Never opens a second one; the same `as_of` twice is a no-op. Signal dropping below 2 does not close it: only residents' `restored = true` resolves a disruption (spec 06).
 - Heuristics, not WSP facts: horizon H = 48 h (turbidity) / 7 d (drought); `window_start = as_of + H/4`, `likely_at = as_of + H/2`, `window_end = as_of + H`; `next_update_at = as_of + 2 h`; `heads_up_from = as_of` when signal <= 2 (else null).
 - `{ "action": "confirm", "disruption_id": "<uuid>", "actor": "R. Abella" }` (actor optional, default `operator`): `predicted -> confirmed` + one system-wide `confirmed` event. Repeat or later status -> 200 `unchanged`; resolved -> 409; unknown -> 404.
-- Response: `{ "action": "created" | "updated" | "unchanged" | "none" | "confirmed", "disruption": {...} | null, "prediction": {...PredictorOutput} }` (`prediction` is omitted for confirm).
+- Response: `{ "action": "created" | "updated" | "unchanged" | "none" | "confirmed" | "heads_up", "disruption": {...} | null, "prediction": {...PredictorOutput}, "heads_up": {...} | null }` (`prediction` is omitted for confirm/heads_up; `heads_up` = see "Automatic heads-up").
 - Known limit: two simultaneous first calls are handled by re-reading after a failed insert, but there is no unique index guarding "one open disruption" (existing smoke tests insert several), so schedule the monitor from one caller (e.g. a single pg_cron job / the operator button).
 
-### `GET dashboard-snapshot`
+### `GET dashboard-snapshot[?as_of=ISO][&live_events=1]`
 Returns Dev B's `DashboardSnapshot` plus extras:
 ```json
 { "generated_at": "2026-07-10T04:00:00.000Z",
@@ -50,6 +50,8 @@ Per-barangay status = the latest `event_log` row of the open disruption that app
 | resident_confirmed, `payload_json.restored = true` | `resolved` (signal shown as 0, resident_state `flowing`) |
 | resident_confirmed, restored false / missing | `confirmed` (back on the allocation list, spec 06) |
 
+`as_of` (optional, ISO 8601 with offset, default now; 400 if malformed) is the demo clock: the Kulador `plant_status` is read at `as_of`, only events with `occurred_at <= as_of` count, and `generated_at = as_of`. Without it nothing changes. Caveat: confirm / deploy / notify / resident-confirmation events are stamped at real time, so under a replayed (past) clock they would be cut off; the web app therefore also sends `live_events=1`, which keeps events stamped after `as_of` (the plant status and `generated_at` still follow `as_of`). The open disruption is still the newest unresolved one, whatever `as_of` is.
+
 No events yet: `predicted`, `last_event_at = disruption.started_at`. Realtime: subscribe to `postgres_changes` INSERT on `public.event_log`; `new.barangay_id === null` -> apply to every served card, else to that card; `new.payload_json.restored` is needed for `resident_confirmed`. Realtime on `event_log`/`disruptions` is already enabled, anon can read (RLS select policies).
 
 ### Shape differences vs Dev B's mocks
@@ -66,6 +68,31 @@ supabase functions deploy dashboard-snapshot
 # anon-callable: functions verify the JWT by default; the anon key passes. No extra secrets (SUPABASE_URL / SERVICE_ROLE_KEY are injected).
 curl -X POST "$URL/functions/v1/disruption-monitor" -H "Authorization: Bearer $ANON" -H "apikey: $ANON" -d '{"as_of":"2026-07-02T06:00:00+08:00"}'
 ```
+
+## Automatic heads-up
+
+The predictor drives prevention: residents hear "store water" as soon as a disruption is predicted, BEFORE the LGU allocates (spec 06 starts later, at `confirmed`). Code: `_shared/heads_up.ts`, wired into `disruption-monitor`. No migration.
+
+- **Trigger**: every monitor tick for the (new or open) disruption whose `status = 'predicted'` and `signal_level >= 2`. Level bands are the signal itself (2, 3, 4): creation sends band `signal_level`; if a later tick raises the signal to a band not yet sent, that band is sent too (2->4 = one more heads-up). Signal falling never sends or retracts anything. After `confirm` (or any later status) no more automatic heads-ups: the allocation/notify path (spec 06) takes over.
+- **Who**: every served barangay (PWA event always, even with no registered resident) and every unserved barangay that has at least one resident (`residents` row). SMS goes to residents with `channel = 'sms'` and a phone, in their `preferred_language`. PWA-channel residents get the event only.
+- **Idempotency**: the per-barangay event IS the dedupe record. At most one heads-up per (disruption, barangay, level); the same `as_of` twice, a later tick with the same signal, or `{action:"heads_up"}` again send nothing (`barangays: 0`). Known limit: no DB unique index, so two simultaneous ticks could double-send; schedule the monitor from one caller (same as the monitor itself).
+- **Event** (`event_log`): `event_type = 'predicted'`, `barangay_id = <barangay>`, `actor = 'system'`, `occurred_at = as_of`, `payload_json = { kind: "heads_up", level: 2|3|4, likely_at: ISO|null, cause, served: bool, store_litres: 60, sms_recipients: n, mode: "dry_run"|"live" }`. It is NOT a lifecycle step: `dashboard-snapshot` bumps `last_event_at` for that barangay but never changes `status` for it (status stays `predicted`/whatever it was), and `_shared/hasEvent` for the lifecycle looks at system-wide rows only. **Clients applying Realtime `event_log` INSERTs must do the same**: if `event_type === 'predicted' && barangay_id != null && payload_json.kind === 'heads_up'`, show the heads-up but do not call `statusAfter` / do not change the card status.
+- **SMS**: through `sendSms` + `sms_outbox` (template `sms.heads_up_store_water` or `sms.heads_up_unserved`, `direction: outbound`). Dry-run unless `SMS_LIVE=true`; even live, the fake demo block `+63900000000X` is never sent (logged `dry_run`, counted in `sms_skipped_demo`). Dev B's `apps/web/src/copy/sms.ts` has no heads-up row, so these are backend-added (mirror them there if wanted; Filipino/Waray, including the day words ngayon/bukas/yana/buwas, are DRAFTS for native review). 60 L = 4 people x 15 L per household (the storage plan assumption used by `sms.water_off`). The start time is `disruption.likely_at` (fallback `heads_up_from`, else "soon") in Asia/Manila, as "today 2PM" / "tomorrow 2AM" / "Sat 11AM" (hour-rounded; beyond 6 days -> "soon").
+- **Monitor response** gains `heads_up: { disruption_id, level, barangays, sms_planned, sms_skipped_demo, mode, skipped?, error? }` (`barangays` = barangays that got a NEW heads-up in this call; `null` when heads-up is not configured). A heads-up failure never fails the tick (`error` is set).
+- **Manual resend**: `POST disruption-monitor {"action":"heads_up","disruption_id":"<uuid>","as_of"?}` -> `{ action: "heads_up", disruption, heads_up }`. Idempotent. 400 bad id, 404 unknown, 409 resolved; a non-`predicted` disruption returns 200 with `heads_up.skipped`.
+- **Resident state (v2)**: a prediction never says water is off. Served signal 1-4 -> `heads_up` (+ `heads_up_urgency` possible/likely/very_likely) until an interruption is observed (disruption confirmed/deployed/notified, or latest Kulador plant_status degraded/shutdown), then `interrupted`/`planned_repair`; unserved -> `not_on_network` (+ `heads_up: true` at signal >= 2). See specs/03. Redeploy `affected-areas` and `dashboard-snapshot` (new `interruption.ts`, `heads_up_urgency`).
+
+SMS examples (barangay Payao, likely_at tomorrow 2 AM Manila, cause turbidity):
+```
+EN  PIA WATERBACK: Water may stop in Payao from tomorrow 2AM. River too muddy to treat. Store 60L per home (4 people x 15L). Reply SRC for backup water.
+FIL PIA WATERBACK: Posibleng walang tubig sa Payao mula bukas 2AM. Sobrang labo ng ilog. Mag-ipon ng 60L kada bahay (4 tao x 15L). Reply SRC.
+WAR PIA WATERBACK: Basin waray tubig ha Payao tikang buwas 2AM. Sobra kalubog an salog. Pag-ipon 60L kada balay (4 ka tawo x 15L). Reply SRC.
+Unserved (EN): PIA WATERBACK: CWD outage expected from tomorrow 2AM. Refill stations near Payao may be busy. Store water if you can. Reply SRC.
+```
+
+**For Dev B's resident screen**: show the `heads_up` state card for the barangay ("Store water tonight", "Likely to stop from {likely_at, Asia/Manila}") from `resident_state === 'heads_up'` or from the latest heads-up event (`payload.likely_at`, `payload.level`); when `level` rises show it as updated, not as a new outage. Unserved: "CWD outage expected; refill stations may be busy". Realtime: ignore heads-up events in `statusAfter` (see Event above).
+
+**Suggested spec 06 edits (for Dev B; not applied)**: (1) add a "Heads-up (pre-allocation)" paragraph: a heads-up is a notification that happens while the disruption is `predicted`, needs no allocation and is not part of the confirm -> deploy -> notify order; (2) list per-barangay `predicted` events with `payload.kind = 'heads_up'` next to the event types and say they never change status; (3) say `sms.water_off` (allocation-time) follows the heads-up and may repeat the "Store 60L" line; (4) add `sms.heads_up_store_water` / `sms.heads_up_unserved` to the SMS template table (Dev B's `copy/sms.ts`).
 
 ## Spec 06 endpoints
 

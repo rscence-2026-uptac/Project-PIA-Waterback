@@ -5,21 +5,28 @@ import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import { OperatorReadingForm } from "../../contracts/spec05";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
+import { isLive } from "../../api/client";
+import { useOpenEvent, eventCode } from "../../api/allocation";
+import { useLiveLatest, useOperatorSeries } from "../../api/operator";
+import { useAsOf } from "../../demo/clockState";
 import { INTAKES, OPERATOR, type IntakeId, type IntakeReading } from "../../data/mock";
 import { formatDay, formatShortTime, formatTime, formatWindow } from "../../lib/time";
 import { db } from "../../offline/db";
 import { useLiveQuery, useOnline } from "../../offline/hooks";
 import { enqueue, pendingItems } from "../../offline/queue";
 import { Button } from "../../ui/Button";
-import { Pill } from "../../ui/Chip";
+import { Pill, SampleChip } from "../../ui/Chip";
 import { Icon } from "../../ui/Icon";
 import { StaffTab, StaffTopBar } from "../../ui/StaffTopBar";
 import { RainChart, TurbidityChart } from "./Charts";
+import { hasDrivers } from "../../lib/drivers";
+import { useLivePrediction } from "../../api/usePrediction";
+import { WhyPanel } from "./WhyPanel";
 
 const { TURBIDITY_SHUTOFF_NTU, TURBIDITY_LIMIT_NTU, CLARIFIER_CAPACITY_LPS } = WSP_CONSTANTS;
 
 type PlantStatus = OperatorReadingForm["plant_status"];
-type Latest = IntakeReading & { logged_at: string };
+type Latest = IntakeReading & { logged_at: string; sample?: boolean };
 
 const intakeName = (id: IntakeId) => INTAKES.find((i) => i.intake_id === id)!.name;
 const isPlant = (id: IntakeId) => INTAKES.find((i) => i.intake_id === id)!.plant;
@@ -27,8 +34,10 @@ const isPlant = (id: IntakeId) => INTAKES.find((i) => i.intake_id === id)!.plant
 const shutOffApplies = (id: IntakeId, ntu: number) => id === "caramayon_1" && ntu >= TURBIDITY_SHUTOFF_NTU;
 
 /** The newest reading for this intake saved on this device, else the sample reading. */
-function useLatestReading(intake: IntakeId): Latest {
-  const sample: Latest = { ...OPERATOR.latest[intake], logged_at: OPERATOR.last_logged_at };
+function useLatestReading(intake: IntakeId): Latest & { simulated?: boolean } {
+  // Live: the newest reading at the demo time. Not live (or none yet): the MOCK sample.
+  const live = useLiveLatest(intake);
+  const sample: Latest & { simulated?: boolean } = live ?? { ...OPERATOR.latest[intake], logged_at: OPERATOR.last_logged_at, sample: true };
   return useLiveQuery(
     async () => {
       const items = await db.queue.where("kind").equals("reading").sortBy("queued_at");
@@ -50,8 +59,8 @@ function useLatestReading(intake: IntakeId): Latest {
   );
 }
 
-function nextHour(): string {
-  const d = new Date();
+function nextHour(from: Date): string {
+  const d = new Date(from);
   d.setMinutes(0, 0, 0);
   d.setHours(d.getHours() + 1);
   return d.toISOString();
@@ -61,7 +70,10 @@ export function OperatorScreen() {
   const { t } = useCopy();
   const [intake, setIntake] = useState<IntakeId>("kulador");
   const latest = useLatestReading(intake);
-  const now = new Date();
+  const { asOf: now } = useAsOf();
+  const prediction = useLivePrediction();
+  const openEvent = useOpenEvent().data;
+  const live = isLive();
 
   return (
     <div className="min-h-dvh bg-foam text-[15px]">
@@ -75,7 +87,13 @@ export function OperatorScreen() {
             <StaffTab>{t("operator.tab_thresholds")}</StaffTab>
           </>
         }
-        right={t("operator.shift", { name: OPERATOR.shift_name, hours: OPERATOR.shift_hours })}
+        right={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {/* No shift roster in the backend: stays a sample, labelled in live mode. */}
+            {t("operator.shift", { name: OPERATOR.shift_name, hours: OPERATOR.shift_hours })}
+            <SampleChip />
+          </span>
+        }
       />
 
       <main className="mx-auto max-w-[1360px] px-8 pb-16 pt-8">
@@ -83,10 +101,12 @@ export function OperatorScreen() {
           <h1 className="text-[32px] leading-tight tracking-[-0.03em]">
             {t("operator.title", { intake: intakeName(intake), day: formatDay(now), time: formatTime(now) })}
           </h1>
-          <Pill className="bg-coral text-ink">
-            <Icon name="dropOff" size={16} />
-            {t("operator.event_open", { id: OPERATOR.event_id })}
-          </Pill>
+          {(!live || openEvent) && (
+            <Pill className="bg-coral text-ink">
+              <Icon name="dropOff" size={16} />
+              {t("operator.event_open", { id: live && openEvent ? eventCode(openEvent.disruption_id) : OPERATOR.event_id })}
+            </Pill>
+          )}
         </div>
 
         <fieldset className="mt-4">
@@ -113,22 +133,30 @@ export function OperatorScreen() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <InfoPill icon="gauge" title={t("operator.readings_pill")} sub={t("operator.readings_sub")}>
-            {t("operator.readings_due", { last: formatTime(latest.logged_at), due: formatTime(nextHour()) })}
+            {t("operator.readings_due", { last: formatTime(latest.logged_at), due: formatTime(nextHour(now)) })}
           </InfoPill>
+          {live && latest.sample && <SampleChip className="self-center" />}
           <InfoPill icon="cloudRain" title={t("operator.rain_pill")} sub={t("operator.rain_sub")}>
-            {t("app.updated_at", { time: formatTime(OPERATOR.rain_updated_at) })}
+            {t("app.updated_at", { time: formatTime(live ? now : OPERATOR.rain_updated_at) })}
           </InfoPill>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-6">
           <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-6">
             <MetricTiles intake={intake} latest={latest} />
-            <ChartsPanel intake={intake} />
-            <ReadingForm key={intake} intake={intake} latest={latest} />
+            <ChartsPanel intake={intake} latestSimulated={latest.simulated === true} />
+            <ReadingForm key={`${intake}-${latest.logged_at}`} intake={intake} latest={latest} />
           </div>
           <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
-            <DetectorPanel />
-            <EarlyWarnings />
+            {/* Live predictor with drivers: the real "why". Otherwise (sample mode, older deploy) the sample cards. */}
+            {hasDrivers(prediction) ? (
+              <WhyPanel prediction={prediction} />
+            ) : (
+              <>
+                <DetectorPanel />
+                <EarlyWarnings />
+              </>
+            )}
             <p className="text-[13px] text-ink-soft">
               {t("operator.footnote", { limit: TURBIDITY_LIMIT_NTU, shut: TURBIDITY_SHUTOFF_NTU, cap: CLARIFIER_CAPACITY_LPS })}
             </p>
@@ -196,7 +224,8 @@ function MetricTiles({ intake, latest }: { intake: IntakeId; latest: Latest }) {
         value={raw}
         unit={t("unit.ntu")}
         badge={shutOff ? t("operator.shutoff") : rawOver ? t("operator.over_limit") : undefined}
-        note={shutOff
+        // "since {time}" is sample data (OPERATOR.over_since); live mode has no start time for the exceedance, so it says only "over the limit".
+        note={shutOff && !isLive()
           ? t("operator.raw_shutoff", { limit: TURBIDITY_SHUTOFF_NTU, time: formatTime(OPERATOR.over_since) })
           : rawOver
             ? t("operator.raw_over", { limit: TURBIDITY_LIMIT_NTU })
@@ -231,7 +260,7 @@ function MetricTiles({ intake, latest }: { intake: IntakeId; latest: Latest }) {
               label={t("operator.reservoir")}
               value={reservoir}
               unit={t("unit.pct")}
-              note={t("operator.reservoir_trend", { n: OPERATOR.reservoir_falling_per_hour })}
+              note={isLive() ? "" : t("operator.reservoir_trend", { n: OPERATOR.reservoir_falling_per_hour })}
             />
           )}
         </>
@@ -244,34 +273,52 @@ function MetricTiles({ intake, latest }: { intake: IntakeId; latest: Latest }) {
   );
 }
 
-function ChartsPanel({ intake }: { intake: IntakeId }) {
+function ChartsPanel({ intake, latestSimulated }: { intake: IntakeId; latestSimulated: boolean }) {
   const { t } = useCopy();
+  const live = isLive();
+  const series = useOperatorSeries(intake).data;
+  // Live: REST readings + rainfall at the demo time. Not live (or the read failed): the MOCK series.
+  const useLiveSeries = live && series !== null;
+  const turbidity = useLiveSeries ? series.turbidity_series : OPERATOR.turbidity_series[intake];
+  const rain = useLiveSeries ? series.rain_series : OPERATOR.rain_series;
+  const end = useLiveSeries ? series.series_end : OPERATOR.series_end;
+  const rainSince = useLiveSeries ? series.rain_since ?? series.series_end : OPERATOR.rain_since;
+  const rainMm = useLiveSeries ? series.rain_total_mm : OPERATOR.rain_total_mm;
+  const dryDays = useLiveSeries ? series.dry_spell_days : OPERATOR.dry_spell_days;
+  const simulated = (useLiveSeries && series.simulated) || latestSimulated;
   return (
     <section className="rounded-xl border-[1.5px] border-haze p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-[20px]">{t("operator.chart_turbidity", { intake: intakeName(intake) })}</h2>
-        <span className="text-[13px] text-ink-soft">{t("operator.chart_units")}</span>
+        <span className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
+          {simulated && <Pill className="bg-mist text-ink"><Icon name="alert" size={14} />{t("operator.simulated")}</Pill>}
+          {t("operator.chart_units")}
+        </span>
       </div>
       <div className="mt-3">
-        <TurbidityChart
-          label={t("operator.chart_turbidity", { intake: intakeName(intake) })}
-          series={OPERATOR.turbidity_series[intake]}
-          end={OPERATOR.series_end}
-          shutOff={intake === "caramayon_1" ? TURBIDITY_SHUTOFF_NTU : undefined}
-        />
+        {turbidity.length >= 2 ? (
+          <TurbidityChart
+            label={t("operator.chart_turbidity", { intake: intakeName(intake) })}
+            series={turbidity}
+            end={end}
+            shutOff={intake === "caramayon_1" ? TURBIDITY_SHUTOFF_NTU : undefined}
+          />
+        ) : (
+          <p className="rounded-md bg-mist p-4">{t("operator.no_readings")}</p>
+        )}
       </div>
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-display text-[17px]">{t("operator.chart_rain")}</h3>
         <span className="text-[13px] text-ink-soft">
           {t("operator.rain_summary", {
-            mm: OPERATOR.rain_total_mm,
-            time: formatShortTime(OPERATOR.rain_since),
-            days: OPERATOR.dry_spell_days,
+            mm: rainMm,
+            time: formatShortTime(rainSince),
+            days: dryDays,
           })}
         </span>
       </div>
       <div className="mt-2">
-        <RainChart series={OPERATOR.rain_series} end={OPERATOR.series_end} />
+        <RainChart series={rain} end={end} />
       </div>
     </section>
   );
@@ -301,7 +348,8 @@ function ReadingForm({ intake, latest }: { intake: IntakeId; latest: Latest }) {
   const plant = isPlant(intake);
   const fields = FIELDS.filter((f) => plant || !f.plantOnly);
   const pending = useLiveQuery(() => pendingItems("reading").then((items) => items.length), [], 0);
-  const sample = OPERATOR.latest[intake];
+  const sample = latest;
+  const { asOf } = useAsOf();
   const [values, setValues] = useState<Record<FieldName, string>>({
     turbidity_ntu: String(sample.turbidity_ntu),
     treated_ntu: asText(sample.treated_ntu),
@@ -352,7 +400,7 @@ function ReadingForm({ intake, latest }: { intake: IntakeId; latest: Latest }) {
     <section className="rounded-xl border-[1.5px] border-haze p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-[20px]">
-          {t("operator.log_title", { time: formatTime(nextHour()), intake: intakeName(intake) })}
+          {t("operator.log_title", { time: formatTime(nextHour(asOf)), intake: intakeName(intake) })}
         </h2>
         <span className="text-[13px] text-ink-soft">{t("operator.last_logged", { time: formatTime(latest.logged_at) })}</span>
       </div>
@@ -425,7 +473,10 @@ function DetectorPanel() {
 
   return (
     <section className="rounded-xl bg-ink p-6 text-foam">
-      <p className="text-[14px] font-bold text-coral">{t("detector.label")}</p>
+      <p className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-coral">
+        {t("detector.label")}
+        <span className="rounded-full bg-foam text-ink"><SampleChip /></span>
+      </p>
       <h2 className="mt-1 text-[26px] leading-tight">{t("detector.turbidity")}</h2>
       <p className="mt-1 text-[14px] text-sky">
         {t("detector.matched", { n: d.matched, total: d.total, time: formatTime(d.confirmed_at) })}
@@ -473,7 +524,7 @@ function EarlyWarnings() {
   const { t } = useCopy();
   return (
     <section className="rounded-xl border-[1.5px] border-haze p-6">
-      <h2 className="font-display text-[22px]">{t("warnings.title")}</h2>
+      <h2 className="flex flex-wrap items-center gap-2 font-display text-[22px]">{t("warnings.title")} <SampleChip /></h2>
       <p className="mt-1 text-[14px] text-ink-soft">{t("warnings.sub")}</p>
       <ul className="mt-4">
         {OPERATOR.early_warnings.map((w) => (

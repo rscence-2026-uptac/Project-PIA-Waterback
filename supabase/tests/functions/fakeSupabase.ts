@@ -48,9 +48,9 @@ class Query implements PromiseLike<{ data: any; error: any }> {
     if (this.op === "insert") {
       db.beforeInsert[this.t]?.(); delete db.beforeInsert[this.t];
       if (db.failNextInsert[this.t]) { db.failNextInsert[this.t] = false; return { data: null, error: { message: "duplicate key", code: "23505" } }; }
-      const row = { id: randomUUID(), resolved_at: null, ...this.payload };
-      rows.push(row);
-      return this.shape([row]);
+      const made = ([] as any[]).concat(this.payload).map((p) => ({ id: randomUUID(), resolved_at: null, ...p })); // bulk insert supported
+      rows.push(...made);
+      return this.shape(made);
     }
     if (this.op === "upsert") {
       const out: any[] = [];

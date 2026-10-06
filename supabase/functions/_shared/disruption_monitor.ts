@@ -6,6 +6,8 @@ import { json, parseAsOf, preflight, UUID_RE } from "./http.ts";
 import type { PredictorOutput } from "./predict.ts";
 import { runPredictor } from "./predictor_runner.ts";
 import { causeOf } from "./affected.ts";
+import { sendHeadsUp } from "./heads_up.ts";
+import type { HeadsUpDeps, HeadsUpResult } from "./heads_up.ts";
 
 export type DisruptionStatus = "predicted" | "confirmed" | "deployed" | "notified" | "resolved";
 export interface DisruptionRow {
@@ -120,6 +122,21 @@ export interface MonitorDeps {
   store: DisruptionStore;
   now?: () => Date;
   fetchLive?: FetchLive;
+  /** Automatic heads-up (SMS dry-run by default + per-barangay PWA events). Omitted = heads-up disabled (response `heads_up: null`). */
+  headsUp?: HeadsUpDeps;
+}
+
+const noHeadsUp = (deps: HeadsUpDeps, skipped: string): HeadsUpResult =>
+  ({ disruption_id: null, level: null, barangays: 0, sms_planned: 0, sms_skipped_demo: 0, mode: deps.sms.live ? "live" : "dry_run", skipped });
+
+/** Never lets a heads-up failure fail the tick (the disruption row and its event are already written). */
+async function tryHeadsUp(deps: HeadsUpDeps, d: DisruptionRow | null, asOf: Date): Promise<HeadsUpResult> {
+  if (!d) return noHeadsUp(deps, "no open disruption");
+  try { return await sendHeadsUp(deps, d, asOf); }
+  catch (e) {
+    console.error("heads-up failed", e);
+    return { ...noHeadsUp(deps, "heads-up failed"), disruption_id: d.id, level: d.signal_level, error: "heads-up failed" };
+  }
 }
 
 export async function handleMonitor(req: Request, deps: MonitorDeps): Promise<Response> {
@@ -138,12 +155,23 @@ export async function handleMonitor(req: Request, deps: MonitorDeps): Promise<Re
       const r = await confirmDisruption(deps.store, body.disruption_id, actor, now);
       return r.error ? json(r.status, { error: r.error }) : json(200, { action: r.action, disruption: r.disruption });
     }
-    if (body.action != null && body.action !== "run") return json(400, { error: "action must be 'run' (default) or 'confirm'" });
+    if (body.action === "heads_up") {
+      if (typeof body.disruption_id !== "string" || !UUID_RE.test(body.disruption_id)) return json(400, { error: "disruption_id (uuid) is required for action 'heads_up'" });
+      if (!deps.headsUp) return json(501, { error: "heads-up is not configured" });
+      const d = await deps.store.getById(body.disruption_id);
+      if (!d) return json(404, { error: "disruption not found" });
+      if (d.status === "resolved") return json(409, { error: "disruption already resolved" });
+      const at = parseAsOf(body.as_of, now);
+      if (!at.ok) return json(400, { error: at.error });
+      return json(200, { action: "heads_up", disruption: d, heads_up: await tryHeadsUp(deps.headsUp, d, at.asOf) });
+    }
+    if (body.action != null && body.action !== "run") return json(400, { error: "action must be 'run' (default), 'confirm' or 'heads_up'" });
     const a = parseAsOf(body.as_of, now);
     if (!a.ok) return json(400, { error: a.error });
     const prediction = await runPredictor(deps.fetchData, a.asOf, now, deps.fetchLive ?? makeLiveFetcher());
     const r = await monitorTick(deps.store, prediction, a.asOf);
-    return json(200, { action: r.action, disruption: r.disruption, prediction });
+    const heads_up = deps.headsUp ? await tryHeadsUp(deps.headsUp, r.disruption, a.asOf) : null;
+    return json(200, { action: r.action, disruption: r.disruption, prediction, heads_up });
   } catch (e) {
     console.error("disruption-monitor failed", e);
     return json(500, { error: "failed to run disruption monitor" });

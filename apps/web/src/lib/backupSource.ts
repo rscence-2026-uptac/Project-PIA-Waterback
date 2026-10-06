@@ -14,7 +14,9 @@ export function rankSeedSources(rows: SeedSource[], cause: Cause | null): SeedSo
     .filter((s) => s.active)
     .filter((s) => !(s.type === "neighboring_barangay" && cause !== null && SYSTEM_WIDE.includes(cause)))
     .sort((a, b) =>
-      (b.safety_score - a.safety_score)
+      // Dev A: reachable first (round trip within the JMP benchmark), then safety, time, cost, id.
+      (Number(a.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN) - Number(b.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN))
+      || (b.safety_score - a.safety_score)
       || (a.travel_minutes - b.travel_minutes)
       || (a.cost_php_per_unit - b.cost_php_per_unit)
       || a.id.localeCompare(b.id));

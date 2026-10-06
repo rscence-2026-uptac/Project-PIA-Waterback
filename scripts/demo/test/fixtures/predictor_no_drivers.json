@@ -1,0 +1,4 @@
+{"asOf":"2026-07-19T19:00:00+08:00",
+ "pred":{"scope":"system","p_turbidity":0.45,"p_drought":0.01,"signal_level":2,"turbidity_level":2,"drought_level":0,"computed_at":"2026-10-06T00:00:00Z","fallback_used":false,"forecast_source":"seeded"},
+ "rain":[{"ts":"2026-07-19T01:00:00+00:00","precipitation_mm":2.5},{"ts":"2026-07-19T05:00:00+00:00","precipitation_mm":5.0},{"ts":"2026-07-18T01:00:00+00:00","precipitation_mm":9}],
+ "forecast":[{"ts":"2026-07-19T12:00:00+00:00","precipitation_mm":10},{"ts":"2026-07-20T12:00:00+00:00","precipitation_mm":20},{"ts":"2026-07-23T12:00:00+00:00","precipitation_mm":50}]}

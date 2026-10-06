@@ -9,10 +9,17 @@ import { useCopy } from "../../copy/i18n";
 import type { AllocationDecision } from "../../contracts/spec06";
 import { CONSUMER_TYPES, type ConsumerType } from "../../contracts/spec09";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
-import { AFFECTED_GROUPS, BARANGAY_POINTS, OFFICER, OPEN_EVENT, ROUTABLE, type AffectedGroupRow } from "../../data/mockLgu";
+import { useAllocationData, type AllocationData, type OpenEvent } from "../../api/allocation";
+import { isLive } from "../../api/client";
+import { confirmDisruption } from "../../api/endpoints";
+import { OFFICER, ROUTABLE, type AffectedGroupRow } from "../../data/mockLgu";
+import { useAsOf } from "../../demo/clockState";
+import { ScreenStateView } from "../../ui/ScreenStateView";
+import { SimulatedLabel } from "../../ui/SourceBits";
 import { formatTime, formatWindow } from "../../lib/time";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
+import { SampleChip } from "../../ui/Chip";
 import { LguLayout } from "./LguLayout";
 import { TypeBadge } from "./consumerTypes";
 import type { MapPin, ServedFirst } from "./PriorityMap";
@@ -60,24 +67,63 @@ function useNeed() {
       row.no_backup_connections > 0 ? t("lgu.need.no_backup", { n: row.no_backup_connections, jmp }) : null,
     ].filter(Boolean);
     if (parts.length > 0) return parts.join(" · ");
-    return row.consumer_type === "residential" && row.connections_affected !== null ? t("lgu.need.covered", { jmp }) : null;
+    // Live rows have no backup-access count yet, so "backup within 30 min" is not claimed for them.
+    return !isLive() && row.consumer_type === "residential" && row.connections_affected !== null ? t("lgu.need.covered", { jmp }) : null;
   };
 }
 
 export function AllocationScreen() {
   const { t } = useCopy();
+  const { asOfKey } = useAsOf();
+  const data = useAllocationData();
+  if (!data.data) {
+    return (
+      <LguLayout>
+        <ScreenStateView state={data.error ? "error" : "loading"} onRetry={data.reload}>{() => null}</ScreenStateView>
+      </LguLayout>
+    );
+  }
+  const { event, groups, points } = data.data;
+  if (!event) {
+    return (
+      <LguLayout>
+        <h1 className="text-[40px] leading-tight tracking-[-0.03em]">{t("lgu.title")}</h1>
+        <div className="mt-6 rounded-xl bg-mist p-6">
+          <h2 className="text-[24px]">{t("lgu.none_open_title")}</h2>
+          <p className="mt-2 text-ink-soft">{t("lgu.none_open_body")}</p>
+        </div>
+      </LguLayout>
+    );
+  }
+  // Re-key so the officer's reordering resets when the disruption or the demo time changes.
+  return <AllocationBody key={`${event.disruption_id}-${asOfKey}`} event={event} groups={groups} points={points} reload={data.reload} />;
+}
+
+function AllocationBody({ event, groups, points, reload }: AllocationData & { event: OpenEvent; reload: () => void }) {
+  const { t } = useCopy();
   const countLabel = useCountLabel();
   const needOf = useNeed();
   const [order, setOrder] = useState<AffectedGroupRow[]>(() =>
-    [...AFFECTED_GROUPS].sort((a, b) => a.suggested_rank - b.suggested_rank),
+    [...groups].sort((a, b) => a.suggested_rank - b.suggested_rank),
   );
   const [save, setSave] = useState<SaveState>("idle");
+  const [confirming, setConfirming] = useState<"idle" | "busy" | "error">("idle");
+  const needsConfirm = event.live && event.status === "predicted";
+  async function onConfirmEvent() {
+    setConfirming("busy");
+    try {
+      await confirmDisruption(event.disruption_id, OFFICER.id);
+      reload();
+    } catch {
+      setConfirming("error");
+    }
+  }
   const [selected, setSelected] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null); // hovered/focused barangay, linked between map and list
   const listRef = useFlip(order.map(rowKey));
 
   const decisions: AllocationDecision[] = order.map((row, i) => ({
-    disruption_id: OPEN_EVENT.disruption_id,
+    disruption_id: event.disruption_id,
     barangay_id: row.barangay_id,
     consumer_type: row.consumer_type,
     priority_rank: i + 1,
@@ -125,17 +171,18 @@ export function AllocationScreen() {
     ? { name: first.name, type: first.consumer_type, count: countLabel(first.consumer_type, first.connections_affected), detail: needOf(first) }
     : null;
 
-  const byType = (type: ConsumerType) => AFFECTED_GROUPS.filter((r) => r.consumer_type === type);
+  const byType = (type: ConsumerType) => groups.filter((r) => r.consumer_type === type);
   const sumKnown = (rows: AffectedGroupRow[]) => rows.reduce((sum, r) => sum + (r.connections_affected ?? 0), 0);
-  const lguRows = byType("lgu");
+  const live = event.live;
+  // Facilities come from lgu rows (sample) or from barangays.critical_facilities on every row (live).
   const totals = {
-    barangays: new Set(AFFECTED_GROUPS.map((r) => r.barangay_id)).size,
-    connections: sumKnown(AFFECTED_GROUPS.filter((r) => r.consumer_type !== "lgu")),
-    noBackup: AFFECTED_GROUPS.reduce((sum, r) => sum + r.no_backup_connections, 0),
-    vulnerable: AFFECTED_GROUPS.reduce((sum, r) => sum + r.vulnerable_residents, 0),
-    health: lguRows.filter((r) => r.facilities.includes("health_station")).length,
-    school: lguRows.filter((r) => r.facilities.includes("school")).length,
-    evac: lguRows.filter((r) => r.facilities.includes("evacuation_center")).length,
+    barangays: new Set(groups.map((r) => r.barangay_id)).size,
+    connections: sumKnown(groups.filter((r) => r.consumer_type !== "lgu")),
+    noBackup: groups.reduce((sum, r) => sum + r.no_backup_connections, 0),
+    vulnerable: groups.reduce((sum, r) => sum + r.vulnerable_residents, 0),
+    health: groups.filter((r) => r.facilities.includes("health_station")).length,
+    school: groups.filter((r) => r.facilities.includes("school")).length,
+    evac: groups.filter((r) => r.facilities.includes("evacuation_center")).length,
   };
 
   return (
@@ -144,14 +191,14 @@ export function AllocationScreen() {
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard tone="bg-coral-wash" icon="dropOff" label={t("lgu.what_happened")}
-          value={t(`lgu.headline.${OPEN_EVENT.cause}`)}
-          note={t("lgu.flagged_by", { who: OPEN_EVENT.flagged_by, time: formatTime(OPEN_EVENT.flagged_at) })} />
+          value={t(`lgu.headline.${event.cause}`)}
+          note={event.flagged_at ? t("lgu.flagged_by", { who: event.flagged_by, time: formatTime(event.flagged_at) }) : ""} />
         <SummaryCard tone="bg-sky" icon="drop" label={t("lgu.who_affected")}
           value={t("lgu.connections", { n: fmt(totals.connections) })}
-          note={t("lgu.affected_sub", { barangays: totals.barangays, no_backup: totals.noBackup })} />
+          note={live ? t("lgu.affected_sub_live", { barangays: totals.barangays }) : t("lgu.affected_sub", { barangays: totals.barangays, no_backup: totals.noBackup })} />
         <SummaryCard tone="bg-sky" icon="clock" label={t("lgu.expected_back")}
-          value={t("lgu.window_today", { window: formatWindow(OPEN_EVENT.window_start, OPEN_EVENT.window_end) })}
-          note={t("lgu.most_likely", { time: formatTime(OPEN_EVENT.likely_at) })} />
+          value={event.window_start && event.window_end ? t("lgu.window_today", { window: formatWindow(event.window_start, event.window_end) }) : t("lgu.window_unknown")}
+          note={event.likely_at ? t("lgu.most_likely", { time: formatTime(event.likely_at) }) : ""} />
         <div className="rounded-xl bg-ink p-6 text-foam">
           {save === "saved" ? (
             <div className="panel-in">
@@ -174,7 +221,7 @@ export function AllocationScreen() {
           <h2 id="priority-title" className="text-[24px]">{t("lgu.priority_title")}</h2>
           <Suspense fallback={<div className="mt-3 h-[400px] rounded-xl bg-mist" aria-hidden="true" />}>
             <PriorityMap
-              points={BARANGAY_POINTS}
+              points={points}
               pins={mapPins(order)}
               servedFirst={servedFirst}
               active={active}
@@ -209,6 +256,12 @@ export function AllocationScreen() {
             <dl className="mt-3">
               <StatRow label={t("lgu.stat_barangays")} value={totals.barangays} />
               {CONSUMER_TYPES.map((type) => {
+                if (live && type === "lgu") {
+                  return <StatRow key={type} label={<TypeBadge type={type} />} value={countLabel(type, totals.health + totals.school + totals.evac)} />;
+                }
+                if (live && type !== "residential") {
+                  return <StatRow key={type} label={<TypeBadge type={type} />} value={t("lgu.no_data")} />;
+                }
                 const rows = byType(type);
                 const unknown = rows.some((r) => r.connections_affected === null);
                 return (
@@ -216,15 +269,17 @@ export function AllocationScreen() {
                     value={`${countLabel(type, sumKnown(rows))}${unknown ? ` + ${t("lgu.coverage_unknown")}` : ""}`} />
                 );
               })}
-              <StatRow label={t("lgu.stat_off_network", { jmp })} value={totals.noBackup} />
-              <StatRow label={t("lgu.stat_vulnerable")} value={totals.vulnerable} />
+              <StatRow label={t("lgu.stat_off_network", { jmp })} value={live ? t("lgu.no_data") : totals.noBackup} />
+              <StatRow label={t("lgu.stat_vulnerable")}
+                value={live ? `${t("lgu.no_data")} · ${t("lgu.flagged_n", { n: groups.filter((r) => r.vulnerable_flag).length })}` : totals.vulnerable} />
               <StatRow label={t("lgu.stat_facilities")}
                 value={t("lgu.facilities_value", { health: totals.health, school: totals.school, evac: totals.evac })} />
             </dl>
           </section>
 
           <section className="rounded-xl border-[1.5px] border-haze p-6">
-            <h2 className="text-[22px]">{t("lgu.route_title")}</h2>
+            <h2 className="flex flex-wrap items-center gap-2 text-[22px]">{t("lgu.route_title")} <SampleChip /></h2>
+            {live && <p className="mt-1 text-[14px] text-ink-soft">{t("lgu.sample_route_note")}</p>}
             <dl className="mt-3">
               <StatRow label={t("lgu.trucks")} value={t("lgu.trucks_value", { trucks: ROUTABLE.trucks, trips: ROUTABLE.trips_each })} />
               <StatRow label={t("lgu.truck_water", { time: formatTime(ROUTABLE.truck_deadline) })}
@@ -240,7 +295,17 @@ export function AllocationScreen() {
             <p className="mt-3 text-[14px] font-bold">
               {changes === 0 ? t("lgu.changes_none") : t("lgu.changes_some", { n: changes })}
             </p>
-            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving"}>
+            {needsConfirm && (
+              <div className="mt-4 rounded-lg bg-ink-raised p-3">
+                <p className="font-bold">{t("lgu.confirm_event_title")}</p>
+                <p className="mt-1 text-[14px] text-sky">{t("lgu.confirm_event_body")}</p>
+                <Button variant="raised" className="mt-3 w-full" onClick={onConfirmEvent} disabled={confirming === "busy"}>
+                  {confirming === "busy" ? t("lgu.confirming") : t("lgu.confirm_event_button")}
+                </Button>
+                {confirming === "error" && <p role="alert" className="mt-2 text-[14px]">{t("app.error_body")}</p>}
+              </div>
+            )}
+            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving" || needsConfirm}>
               {save === "saving" ? t("lgu.saving") : t("lgu.confirm_button", { name: OFFICER.name })}
             </Button>
             {(save === "not_connected" || save === "out_of_order" || save === "error") && (
@@ -332,6 +397,14 @@ function PriorityRow({ row, rank, first, last, highlighted, linked, need, countL
               <span className="ml-1.5 text-[13px] font-bold">({t("lgu.estimate")})</span>
             )}
             {levelI && <span className="ml-1.5 text-[13px] font-bold">· {t("lgu.level_i")}</span>}
+          </p>
+        )}
+        {row.service_level === "unserved" && <p className="mt-0.5 text-[13px] font-bold">{t("lgu.unserved")}</p>}
+        {row.top_source && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-[14px]">
+            <span>{t("lgu.first_stop", { name: row.top_source.name })}</span>
+            {row.top_source.exceeds_jmp_benchmark && <span className="font-bold">· {t("lgu.far_source", { jmp })}</span>}
+            <SimulatedLabel source={row.top_source} />
           </p>
         )}
       </div>

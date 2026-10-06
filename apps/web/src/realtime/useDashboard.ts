@@ -2,9 +2,10 @@
 // When the feed drops, the last data stays on screen with its time and the screen offers
 // Refresh (AC3); it never silently pretends to be live.
 import { useCallback, useEffect, useState } from "react";
-import type { DashboardRow, RealtimeEvent } from "../contracts/spec07";
+import { isHeadsUpEvent, type DashboardRow, type RealtimeEvent } from "../contracts/spec07";
+import { useAsOf } from "../demo/clockState";
 import type { ScreenState } from "../contracts/spec08";
-import { fetchDashboardSnapshot, subscribeEventLog, type FeedStatus } from "./eventFeed";
+import { fetchDashboardSnapshot, subscribeEventLog, type DisruptionChange, type FeedStatus } from "./eventFeed";
 
 export type LiveRow = DashboardRow & {
   resident_confirmed: boolean; // a resident_confirmed event arrived (status itself doesn't change)
@@ -13,6 +14,7 @@ export type LiveRow = DashboardRow & {
 
 export interface FeedItem extends RealtimeEvent {
   received_at: number;
+  heads_up: boolean; // a per-barangay heads-up: shown in the feed, never changes a card's status
 }
 
 const FEED_LENGTH = 30;
@@ -25,6 +27,7 @@ export function useDashboard() {
   const [failed, setFailed] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const { asOf, asOfKey } = useAsOf();
 
   // Reset to "connecting" here (not inside the effect) so each Refresh starts clean.
   const refresh = useCallback(() => {
@@ -37,20 +40,47 @@ export function useDashboard() {
     let cancelled = false;
     let unsubscribe = () => {};
 
-    fetchDashboardSnapshot()
-      .then((snapshot) => {
+    const load = (quiet: boolean) =>
+      fetchDashboardSnapshot(asOf).then((snapshot) => {
         if (cancelled) return;
-        setRows(snapshot.barangays.map((row) => ({ ...row, resident_confirmed: false, changed_at: null })));
+        setRows((current) => {
+          const old = new Map(current.map((row) => [row.barangay_id, row]));
+          return snapshot.barangays.map((row) => ({
+            ...row,
+            resident_confirmed: old.get(row.barangay_id)?.resident_confirmed ?? false,
+            changed_at: quiet && old.get(row.barangay_id)?.status !== row.status ? Date.now() : null,
+          }));
+        });
         setSyncedAt(snapshot.generated_at);
         setLoaded(true);
+      });
+
+    load(false)
+      .then(() => {
+        if (cancelled) return;
         unsubscribe = subscribeEventLog({
           onStatus: (status) => !cancelled && setConnection(status),
           onEvent: (event) => {
             if (cancelled) return;
             const now = Date.now();
-            setRows((current) => current.map((row) => (row.barangay_id === event.barangay_id ? applyEvent(row, event, now) : row)));
-            setFeed((current) => [{ ...event, received_at: now }, ...current].slice(0, FEED_LENGTH));
+            const headsUp = isHeadsUpEvent(event);
+            // barangay_id null = system-wide: it applies to every served card.
+            setRows((current) =>
+              current.map((row) => (event.barangay_id === null || row.barangay_id === event.barangay_id ? applyEvent(row, event, now) : row)),
+            );
+            setFeed((current) => [{ ...event, received_at: now, heads_up: headsUp }, ...current].slice(0, FEED_LENGTH));
             setSyncedAt(event.occurred_at);
+          },
+          onDisruption: (change: DisruptionChange) => {
+            if (cancelled) return;
+            // A new disruption changes which cards exist/what they show: re-read the snapshot.
+            if (change.kind === "insert") return void load(true).catch(() => {});
+            const level = change.signal_level;
+            if (level === null) return;
+            const now = Date.now();
+            setRows((current) =>
+              current.map((row) => (row.status === "resolved" || row.signal_level === level ? row : { ...row, signal_level: level, changed_at: now })),
+            );
           },
         });
       })
@@ -64,7 +94,8 @@ export function useDashboard() {
       cancelled = true;
       unsubscribe();
     };
-  }, [attempt]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt, asOfKey]);
 
   const screenState: ScreenState =
     !loaded ? (failed ? "error" : "loading") : connection === "dropped" ? "offline_stale" : "ready";
@@ -73,8 +104,16 @@ export function useDashboard() {
 }
 
 function applyEvent(row: LiveRow, event: RealtimeEvent, now: number): LiveRow {
+  // Heads-up (per-barangay `predicted` with payload kind heads_up): bump the time only, never the status.
+  if (isHeadsUpEvent(event)) return { ...row, last_event_at: event.occurred_at, changed_at: now };
   if (event.event_type === "resident_confirmed") {
-    return { ...row, resident_confirmed: true, last_event_at: event.occurred_at, changed_at: now };
+    if (event.payload_json === undefined) {
+      return { ...row, resident_confirmed: true, last_event_at: event.occurred_at, changed_at: now }; // sample feed
+    }
+    // Live: restored = true resolves the card; anything else puts it back to `confirmed` (allocation list).
+    return event.payload_json?.restored === true
+      ? { ...row, status: "resolved", signal_level: 0, resident_confirmed: true, last_event_at: event.occurred_at, changed_at: now }
+      : { ...row, status: "confirmed", resident_confirmed: true, last_event_at: event.occurred_at, changed_at: now };
   }
   return {
     ...row,

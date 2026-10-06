@@ -1,7 +1,10 @@
 // SPEC: 05 — resident/captain status, cache first. Never a blank screen or endless spinner.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenState } from "../contracts/spec08";
 import type { BarangayStatusView } from "../contracts/spec05";
+import { fetchLiveSnapshot } from "../api/status";
+import { isLive } from "../api/client";
+import { useAsOf } from "../demo/clockState";
 import { mockSnapshot, type BarangaySnapshot } from "../data/mock";
 import { db } from "./db";
 
@@ -12,9 +15,11 @@ export interface BarangayStatus {
   retry: () => void;
 }
 
-// MOCK: stands in for Dev A's Supabase status query. Throws when offline, like a real fetch.
-async function fetchSnapshot(barangayId: string): Promise<BarangaySnapshot> {
+// Live: the Edge Functions at the demo clock's as_of (api/status.ts). Not live: MOCK sample data.
+// Throws when offline, like a real fetch.
+async function fetchSnapshot(barangayId: string, asOf: Date): Promise<BarangaySnapshot> {
   if (!navigator.onLine) throw new Error("offline");
+  if (isLive()) return fetchLiveSnapshot(barangayId, asOf);
   await new Promise((resolve) => setTimeout(resolve, 250));
   const snapshot = mockSnapshot(barangayId);
   if (!snapshot) throw new Error(`No status for ${barangayId}`);
@@ -26,6 +31,8 @@ export function useBarangayStatus(barangayId: string | null): BarangayStatus {
   const [snapshot, setSnapshot] = useState<BarangaySnapshot | null>(null);
   const [stale, setStale] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const { asOf, asOfKey } = useAsOf();
+  const hasFresh = useRef<string | null>(null);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
@@ -35,7 +42,9 @@ export function useBarangayStatus(barangayId: string | null): BarangayStatus {
     (async () => {
       const cached = await db.barangayStatus.get(barangayId);
       if (cancelled) return;
-      if (cached) {
+      if (hasFresh.current === barangayId) {
+        // Re-fetching (retry or a new as_of): keep what is on screen, don't flash "offline".
+      } else if (cached && (cached.snapshot.live === true) === isLive()) {
         setSnapshot(cached.snapshot);
         setStale(true);
         setState("offline_stale");
@@ -44,15 +53,17 @@ export function useBarangayStatus(barangayId: string | null): BarangayStatus {
       }
 
       try {
-        const fresh = await fetchSnapshot(barangayId);
+        const fresh = await fetchSnapshot(barangayId, asOf);
         await db.barangayStatus.put({ barangay_id: barangayId, snapshot: fresh });
         if (cancelled) return;
+        hasFresh.current = barangayId;
         setSnapshot(fresh);
         setStale(false);
         setState("ready");
       } catch {
         if (cancelled) return;
-        setState(cached ? "offline_stale" : "error");
+        setStale(true);
+        setState(cached || hasFresh.current === barangayId ? "offline_stale" : "error");
       }
     })();
 
@@ -61,7 +72,8 @@ export function useBarangayStatus(barangayId: string | null): BarangayStatus {
       cancelled = true;
       window.removeEventListener("online", retry);
     };
-  }, [barangayId, attempt, retry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barangayId, attempt, retry, asOfKey]);
 
   const view: BarangayStatusView | null = snapshot
     ? { ...snapshot.status, is_stale: stale }

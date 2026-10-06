@@ -4,6 +4,7 @@ import type { BarangaySnapshot } from "../../data/mock";
 import { useBarangay } from "../../lib/barangay";
 import { formatDuration, formatTime, minutesBetween } from "../../lib/time";
 import { Button } from "../../ui/Button";
+import { SampleChip } from "../../ui/Chip";
 import { Icon } from "../../ui/Icon";
 
 // One wave period is 390px wide; the path is two periods so the drift loops seamlessly.
@@ -54,6 +55,8 @@ export function WaterBackView({ snapshot }: { snapshot: BarangaySnapshot }) {
                 </li>
               </ul>
               <div className="mt-4 border-t border-haze pt-4">
+                {/* Captain check counts and thank-yous have no backend yet. */}
+                {captain.live && <SampleChip className="mb-2" />}
                 <p className="font-bold">{t("back.captain", { name: captain.name, n: captain.checks_today })}</p>
                 <p className="mt-1">
                   {t("back.captain_reach", { name: captain.name, n: captain.to_working, barangay: barangay?.name ?? "" })}

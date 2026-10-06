@@ -1,6 +1,7 @@
 // SPEC: 05 — every write goes into the local queue first, then syncs when online.
 import { OfflineQueueItem } from "../contracts/spec05";
 import { db } from "./db";
+import { syncQueue } from "./sync";
 
 export async function enqueue(
   kind: OfflineQueueItem["kind"],
@@ -15,13 +16,14 @@ export async function enqueue(
     synced: false,
   });
   await db.queue.add(item);
+  void syncQueue(); // best effort: does nothing when offline or not live
   return item;
 }
 
 export function pendingItems(kind?: OfflineQueueItem["kind"]) {
   return db.queue
     .orderBy("queued_at")
-    .filter((item) => !item.synced && (!kind || item.kind === kind))
+    .filter((item) => !item.synced && !item.rejected && (!kind || item.kind === kind))
     .toArray();
 }
 

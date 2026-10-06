@@ -17,6 +17,7 @@ export const OfflineQueueItem = z.object({
   payload: z.record(z.string(), z.unknown()), // spec: z.record(z.unknown()); zod 4 needs the key type
   queued_at: z.string().datetime(),
   synced: z.boolean().default(false),
+  rejected: z.string().optional(), // client-only: the server refused this item for good (reason code); never retried
 });
 export type OfflineQueueItem = z.infer<typeof OfflineQueueItem>;
 

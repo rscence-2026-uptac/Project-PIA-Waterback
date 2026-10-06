@@ -2,12 +2,13 @@
 // screens. Signal level is color + icon + word (AC2); events apply live (AC1); a dropped feed
 // keeps the last data with its time and offers Refresh (AC3).
 import { useState } from "react";
+import { isLive } from "../../api/client";
 import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import type { DisruptionStatus } from "../../contracts/spec07";
 import { BARANGAYS } from "../../data/mock";
 import { formatTime, formatTimeSeconds } from "../../lib/time";
-import { waterState, type WaterState } from "../../lib/waterState";
+import { interruptionObserved, waterState, type WaterState } from "../../lib/waterState";
 import { useDashboard, type FeedItem, type LiveRow } from "../../realtime/useDashboard";
 import { Button } from "../../ui/Button";
 import { Pill, StatusChip } from "../../ui/Chip";
@@ -54,7 +55,7 @@ export function LiveDashboardScreen() {
               </section>
               <EventFeed feed={live.feed} />
             </div>
-            <p className="mt-6 text-[14px] text-ink-soft">{t("live.sample")}</p>
+            {!isLive() && <p className="mt-6 text-[14px] text-ink-soft">{t("live.sample")}</p>}
           </>
         )}
       </ScreenStateView>
@@ -103,7 +104,7 @@ function LevelTiles({ rows }: { rows: LiveRow[] }) {
       <h2 id="levels-title" className="text-[18px] font-bold">{t("live.levels_title", { n: rows.length })}</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {[0, 1, 2, 3, 4].map((level) => {
-          const state = waterState(level, null);
+          const state = waterState(level, null, { interruptionObserved: true }); // legend: what each level looks like once water has stopped
           const style = TILE_STYLE[state];
           const count = rows.filter((r) => r.signal_level === level).length;
           return (
@@ -176,7 +177,7 @@ function BarangayGrid({ rows, filter }: { rows: LiveRow[]; filter: Filter }) {
           <li key={`${row.barangay_id}-${row.changed_at ?? 0}`} className={`rounded-xl border-[1.5px] border-haze p-4 ${row.changed_at ? "panel-in" : ""}`}>
             <p className="font-display text-[19px] leading-tight">{nameOf(row.barangay_id)}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              <StatusChip state={waterState(row.signal_level, null)} />
+              <StatusChip state={waterState(row.signal_level, null, { interruptionObserved: interruptionObserved(row.status) })} />
               <Pill className={`${status.className} text-[13px]`}>
                 <Icon name={status.icon} size={14} />
                 {t(status.key)}
@@ -220,9 +221,9 @@ function EventFeed({ feed }: { feed: FeedItem[] }) {
       ) : (
         <ol className="mt-4 flex flex-col" aria-live="polite">
           {feed.map((item) => (
-            <li key={`${item.barangay_id}-${item.occurred_at}-${item.event_type}`} className="panel-in grid grid-cols-[96px_1fr] gap-3 border-b border-haze py-2.5 last:border-b-0">
+            <li key={`${item.barangay_id ?? "all"}-${item.occurred_at}-${item.event_type}-${item.received_at}`} className="panel-in grid grid-cols-[96px_1fr] gap-3 border-b border-haze py-2.5 last:border-b-0">
               <span className="font-bold tabular-nums">{formatTimeSeconds(item.occurred_at)}</span>
-              <span>{t("live.event_line", { event: t(EVENT_KEY[item.event_type]), barangay: nameOf(item.barangay_id) })}</span>
+              <span>{t("live.event_line", { event: t(EVENT_KEY[item.event_type]), barangay: item.barangay_id === null ? t("live.all_barangays") : nameOf(item.barangay_id) })}{item.heads_up ? ` · ${t("live.heads_up_tag")}` : ""}</span>
             </li>
           ))}
         </ol>
