@@ -42,6 +42,7 @@ export const ResidentConfirmation = z.object({
   channel: z.enum(["pwa", "sms_reply"]),
   restored: z.boolean(), // false => re-enters allocation, matches the "no, adjust" loop
   confirmed_at: z.string().datetime(),
+  client_local_id: z.string().uuid().optional(), // offline queue local_id, so a retried sync is not counted twice
 });
 export type ResidentConfirmation = z.infer<typeof ResidentConfirmation>;
 

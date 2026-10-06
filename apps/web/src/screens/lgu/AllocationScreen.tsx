@@ -2,7 +2,7 @@
 // Human-in-the-loop: every row keeps its suggested rank, so each override is recorded as
 // overridden_from_suggested_rank on the AllocationDecision.
 import { useLayoutEffect, useRef, useState } from "react";
-import { BackendNotConnected, confirmAllocation } from "../../actions/lgu";
+import { BackendNotConnected, StepOutOfOrder, confirmAllocation } from "../../actions/lgu";
 import { useCopy } from "../../copy/i18n";
 import type { AllocationDecision } from "../../contracts/spec06";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
@@ -21,7 +21,7 @@ function households(row: AffectedBarangay): number | null {
   return row.piped_households_affected + row.unpiped_households_affected;
 }
 
-type SaveState = "idle" | "saving" | "saved" | "not_connected" | "error";
+type SaveState = "idle" | "saving" | "saved" | "not_connected" | "out_of_order" | "error";
 
 export function AllocationScreen() {
   const { t } = useCopy();
@@ -55,7 +55,11 @@ export function AllocationScreen() {
       await confirmAllocation(decisions);
       setSave("saved");
     } catch (error) {
-      setSave(error instanceof BackendNotConnected ? "not_connected" : "error");
+      setSave(
+        error instanceof BackendNotConnected ? "not_connected"
+          : error instanceof StepOutOfOrder ? "out_of_order"
+          : "error",
+      );
     }
   }
 
@@ -154,10 +158,10 @@ export function AllocationScreen() {
             <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving"}>
               {save === "saving" ? t("lgu.saving") : t("lgu.confirm_button", { name: OFFICER.name })}
             </Button>
-            {(save === "not_connected" || save === "error") && (
+            {(save === "not_connected" || save === "out_of_order" || save === "error") && (
               <p role="alert" className="panel-in mt-4 flex gap-2.5 rounded-lg bg-ink-raised p-3 text-[14px]">
                 <Icon name="wifiOff" size={18} className="mt-0.5" />
-                {save === "not_connected" ? t("lgu.not_connected") : t("app.error_body")}
+                {save === "not_connected" ? t("lgu.not_connected") : save === "out_of_order" ? t("lgu.out_of_order") : t("app.error_body")}
               </p>
             )}
           </section>

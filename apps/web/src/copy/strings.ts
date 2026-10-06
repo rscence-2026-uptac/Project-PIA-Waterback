@@ -87,7 +87,8 @@ const ROWS = [
   ["source.live.scheduled", "Scheduled {time}", "Nakaiskedyul {time}", "Naka-iskedyul {time}"],
   ["source.live.long_queue", "Long queue", "Mahabang pila", "Haluag nga linya"],
   ["source.live.dry", "Dry", "Tuyo", "Hubas"],
-  ["source.bring", "Bring containers", "Magdala ng lalagyan", "Pagdara hin butangan"],
+  ["source.simulated", "Sample entry · not yet checked", "Halimbawa lang · hindi pa nasusuri", "Halimbawa la · diri pa nasusi"],
+  ["source.bring","Bring containers", "Magdala ng lalagyan", "Pagdara hin butangan"],
   ["sources.title", "Your backup water plan", "Ang iyong reserbang plano sa tubig", "An imo reserba nga plano ha tubig"],
   ["sources.sub", "{barangay}. Ranked by safety first, then walking time, then cost.", "{barangay}. Inayos ayon sa kaligtasan, saka layo ng lakad, saka presyo.", "{barangay}. Ginhan-ay sumala han kaluwasan, katapos kahirayo han lakat, katapos presyo."],
   ["sources.legend_a", "Bars show the full round trip, queue included. The mark is ", "Ipinapakita ng guhit ang buong balikan, kasama ang pila. Ang marka ay ", "Ginpapakita han linya an bug-os nga balikan, upod an linya. An marka amo an "],
@@ -326,7 +327,7 @@ const ROWS = [
   ["lgu.log_note", "Every change is saved to the allocation log under your name, with the time.", "Bawat pagbabago ay naitatala sa allocation log sa ilalim ng pangalan mo, kasama ang oras.", "An kada pagbag-o ginsusurat ha allocation log ilarom han imo ngaran, upod an oras."],
   ["lgu.saving", "Saving…", "Sine-save…", "Gin-sesave…"],
   ["lgu.not_connected", "Not sent yet. The server that saves this and notifies residents isn't connected, so nothing has left this screen.", "Hindi pa naipadala. Hindi pa konektado ang server na nagse-save at nag-aabiso, kaya walang lumabas sa screen na ito.", "Diri pa naipadara. Diri pa konektado an server nga nagse-save ngan nagpapahibaro, salit waray gumawas hini nga screen."],
-
+  ["lgu.out_of_order", "That step can't run yet. Finish the step before it first (confirm, then deploy, then notify).", "Hindi pa maaaring gawin ang hakbang na ito. Tapusin muna ang nauna (kumpirma, ipadala, saka abisuhan).", "Diri pa mahimo ini nga lakang. Tapusa anay an nauna (kumpirma, ipadara, ngan pahibaro)."],
   // Event record (spec 06 AC5 + MEM-1, wireframe p.11)
   ["record.download", "Download record", "I-download ang talaan", "I-download an listahan"],
   ["record.closed", "Closed · water restored {time}", "Sarado · bumalik ang tubig {time}", "Sirado · nabalik an tubig {time}"],

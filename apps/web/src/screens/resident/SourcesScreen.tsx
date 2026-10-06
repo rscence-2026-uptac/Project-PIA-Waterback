@@ -8,7 +8,7 @@ import { formatTime } from "../../lib/time";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
-import { CostLabel, LiveStatusLabel, RoundTripBar, RoundTripCaption, SafetyLabel } from "../../ui/SourceBits";
+import { CostLabel, LiveStatusLabel, RoundTripBar, RoundTripCaption, SafetyLabel, SimulatedLabel } from "../../ui/SourceBits";
 import { ConnectionLine } from "./ResidentLayout";
 
 export function SourcesScreen() {
@@ -87,6 +87,7 @@ function SourceRow({ source, first, last }: { source: BackupSource; first: boole
             <RoundTripCaption minutes={source.travel_minutes} />
           </div>
         )}
+        {source.is_simulated && <p className="mt-3"><SimulatedLabel source={source} /></p>}
         {source.note && <p className="mt-3 text-ink-soft">{source.note}</p>}
       </article>
     </li>

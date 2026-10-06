@@ -28,6 +28,18 @@ export function LiveStatusLabel({ live }: { live: LiveStatus }) {
   );
 }
 
+/** Shown on placeholder rows (spec 04 `is_simulated`). Text + icon, never colour alone. */
+export function SimulatedLabel({ source }: { source: { is_simulated?: boolean } }) {
+  const { t } = useCopy();
+  if (!source.is_simulated) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-haze px-2.5 py-1 text-[15px] font-bold text-ink">
+      <Icon name="alert" size={16} />
+      {t("source.simulated")}
+    </span>
+  );
+}
+
 export function SafetyLabel({ safety }: { safety: Safety }) {
   const { t } = useCopy();
   if (safety === "boil") {
