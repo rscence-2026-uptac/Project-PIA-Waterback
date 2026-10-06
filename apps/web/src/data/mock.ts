@@ -27,6 +27,7 @@ export interface Barangay {
 }
 
 export interface DisruptionDetail {
+  disruption_id: string | null;
   cause: Cause | null;
   started_at: string | null;
   updated_at: string;
@@ -35,6 +36,7 @@ export interface DisruptionDetail {
   likely_at: string | null;
   next_update_at: string;
   heads_up_from: string | null;
+  restored_at: string | null; // set once residents confirm water is back (spec 06)
 }
 
 export interface BackupSource extends RankedSource {
@@ -63,6 +65,7 @@ export interface CaptainDay {
   households_reached: number;
   delivered: number;
   to_working: number;
+  checks_today: number;
   thanks: { quote: string; who: string; at: string }[];
   more_thanks: number;
   sources: CaptainSource[];
@@ -148,6 +151,7 @@ function captainFor(barangay: string): CaptainDay {
     households_reached: 212,
     delivered: 212,
     to_working: 38,
+    checks_today: 4,
     thanks: [
       { quote: "“The faucet tip saved us a long walk. Thank you.”", who: "A household near the chapel", at: todayAt(7, 58) },
       { quote: "“Thanks for checking the well so early.”", who: "A household on the riverside", at: todayAt(7, 51) },
@@ -161,12 +165,17 @@ function captainFor(barangay: string): CaptainDay {
   };
 }
 
+// MOCK: the open event every affected barangay shares (TP-2026-031 in the wireframes).
+export const EVENT_DISRUPTION_ID = "3f1c2a40-9b7e-4c1a-8d2e-5a6b7c8d9e01";
+
 const NO_DISRUPTION: DisruptionDetail = {
+  disruption_id: null, restored_at: null,
   cause: null, started_at: null, window_start: null, window_end: null, likely_at: null,
   heads_up_from: null, updated_at: todayAt(8), next_update_at: todayAt(10),
 };
 
 const TURBIDITY_OUTAGE: DisruptionDetail = {
+  disruption_id: EVENT_DISRUPTION_ID, restored_at: null,
   cause: "turbidity", started_at: todayAt(5, 48), updated_at: todayAt(8),
   window_start: todayAt(16), window_end: todayAt(19), likely_at: todayAt(17, 30),
   next_update_at: todayAt(10), heads_up_from: null,
@@ -176,16 +185,21 @@ const TURBIDITY_OUTAGE: DisruptionDetail = {
 const SCENARIOS: Record<string, { signal_level: number; detail: DisruptionDetail }> = {
   canlapwas: { signal_level: 4, detail: TURBIDITY_OUTAGE },
   mercedes: { signal_level: 3, detail: TURBIDITY_OUTAGE },
-  guinsorongan: { signal_level: 2, detail: { ...NO_DISRUPTION, cause: "turbidity", heads_up_from: todayAt(2, 0, 1) } },
+  guinsorongan: {
+    signal_level: 2,
+    detail: { ...NO_DISRUPTION, disruption_id: EVENT_DISRUPTION_ID, cause: "turbidity", heads_up_from: todayAt(2, 0, 1) },
+  },
   "san-andres": {
     signal_level: 3,
     detail: {
+      disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
       cause: "drought", started_at: todayAt(6), updated_at: todayAt(8),
       window_start: todayAt(17), window_end: todayAt(20), likely_at: todayAt(18),
       next_update_at: todayAt(10), heads_up_from: null,
     },
   },
-  payao: { signal_level: 1, detail: { ...NO_DISRUPTION, cause: "drought", heads_up_from: todayAt(6, 0, 1) } },
+  // Water's back (wireframe p.6): restored at 5:05 PM, 25 minutes before the likely time.
+  payao: { signal_level: 0, detail: { ...TURBIDITY_OUTAGE, updated_at: todayAt(17, 5), restored_at: todayAt(17, 5) } },
   silanga: { signal_level: 0, detail: NO_DISRUPTION },
 };
 

@@ -14,7 +14,9 @@ import { DropGauge } from "../../ui/Drop";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { CostLabel, LiveStatusLabel, SafetyLabel } from "../../ui/SourceBits";
+import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
 import { ConnectionLine, ResidentHeader } from "./ResidentLayout";
+import { WaterBackView } from "./WaterBackView";
 
 export function StatusScreen() {
   const barangay = useBarangay();
@@ -31,14 +33,28 @@ export function StatusScreen() {
   );
 }
 
+// SPEC: 06 — this screen is the PWA view of NotificationPayload: status (chip + headline), cause,
+// expected_duration_hint (time window), store_water_advice (storage plan), nearest_source_name (Plan A).
 function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; signalLevel: number }) {
+  const { t } = useCopy();
   const { detail } = snapshot;
+  if (detail.restored_at) return <WaterBackView snapshot={snapshot} />;
+
   const state = waterState(signalLevel, detail.cause);
   const needsPlan = state !== "flowing";
+  const pipedOff = state === "interrupted" || state === "repair";
 
   return (
     <>
       <StatusCard state={state} detail={detail} />
+      {pipedOff && detail.disruption_id && (
+        <ConfirmWaterBack
+          disruptionId={detail.disruption_id}
+          barangayId={snapshot.status.barangay_id}
+          confirmedBy="resident"
+          title={t("confirm.title_resident")}
+        />
+      )}
       {needsPlan && <StoragePlanSection snapshot={snapshot} />}
       {needsPlan && <RunOutSection snapshot={snapshot} />}
     </>

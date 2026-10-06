@@ -17,7 +17,10 @@ const PATHS = {
   gauge: "M4 15a8 8 0 0 1 16 0 M12 15l3.5-4 M4 19h16",
   history: "M4 12a8 8 0 1 0 2.4-5.7L4 8.5 M4 4v4.5h4.5 M12 8v4l3 2",
   wifiOff: "M2 8.8a15 15 0 0 1 4.3-2.5M10 5.1a15 15 0 0 1 12 3.7M5.5 12.3a10 10 0 0 1 4-2M14.5 10.4a10 10 0 0 1 4 1.9M9 15.8a5 5 0 0 1 6 0M12 19.5v.1M3 3l18 18",
-  circle: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
+  download: "M12 4v11 M7 10l5 5 5-5 M5 20h14",
+  tap: "M5 7h11a3 3 0 0 1 3 3v1 M9 7V4h4v3 M19 13v3 M19 19v.1",
+  heart: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z",
+  circle:"M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
 } as const;
 
 export type IconName = keyof typeof PATHS;

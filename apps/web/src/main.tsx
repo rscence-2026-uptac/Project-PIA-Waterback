@@ -13,6 +13,11 @@ import { SettingsScreen } from "./screens/resident/SettingsScreen";
 import { CaptainScreen } from "./screens/captain/CaptainScreen";
 import { OperatorScreen } from "./screens/operator/OperatorScreen";
 import { AdminScreen } from "./screens/admin/AdminScreen";
+import { AllocationScreen } from "./screens/lgu/AllocationScreen";
+import { EventRecordScreen } from "./screens/lgu/EventRecordScreen";
+
+// Spec 08: warn in dev if any SMS template no longer fits one GSM-7 segment.
+if (import.meta.env.DEV) void import("./copy/sms");
 
 const router = createBrowserRouter([
   {
@@ -26,6 +31,8 @@ const router = createBrowserRouter([
   },
   { path: "/captain", element: <CaptainScreen /> },
   { path: "/operator", element: <OperatorScreen /> },
+  { path: "/lgu", element: <AllocationScreen /> },
+  { path: "/lgu/event", element: <EventRecordScreen /> },
   { path: "/admin", element: <AdminScreen /> },
 ]);
 

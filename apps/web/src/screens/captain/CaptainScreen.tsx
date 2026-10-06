@@ -15,18 +15,18 @@ import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { safetyText } from "../../copy/labels";
 import { useToast } from "../../ui/Toast";
+import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
 
 export function CaptainScreen() {
   const { t } = useCopy();
   // MOCK: no captain sign-in yet; the captain sees the barangay chosen on this phone (or Canlapwas).
   const barangay = useBarangay() ?? BARANGAYS[0];
   const status = useBarangayStatus(barangay.barangay_id);
-  const placeLabel = barangay.name;
 
   return (
     <div className="mx-auto min-h-dvh max-w-[430px] bg-foam px-5 pb-16 pt-[max(16px,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between">
-        <p className="text-[15px] text-ink-soft">{t("captain.role", { barangay: placeLabel })}</p>
+        <p className="text-[15px] text-ink-soft">{t("captain.role", { barangay: barangay.name })}</p>
         <DropMark size={24} />
       </div>
       <ScreenStateView state={status.state} onRetry={status.retry}>
@@ -34,6 +34,7 @@ export function CaptainScreen() {
           status.snapshot &&
           status.view && (
             <CaptainBody
+              barangayName={barangay.name}
               snapshot={status.snapshot}
               signalLevel={status.view.signal_level}
               stale={status.view.is_stale}
@@ -53,7 +54,8 @@ function greetingKey(): CopyKeyName {
   return "captain.greeting_evening";
 }
 
-function CaptainBody({ snapshot, signalLevel, stale, syncedAt }: {
+function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
+  barangayName: string;
   snapshot: BarangaySnapshot;
   signalLevel: number;
   stale: boolean;
@@ -113,6 +115,15 @@ function CaptainBody({ snapshot, signalLevel, stale, syncedAt }: {
           <h2 className="text-[20px] leading-tight">{t("captain.piped_on")}</h2>
           <StatusChip state={state} />
         </section>
+      )}
+
+      {pipedOff && detail.disruption_id && (
+        <ConfirmWaterBack
+          disruptionId={detail.disruption_id}
+          barangayId={snapshot.status.barangay_id}
+          confirmedBy="barangay_captain"
+          title={t("confirm.title_captain", { barangay: barangayName })}
+        />
       )}
 
       <MorningRound barangayId={snapshot.status.barangay_id} sources={captain.sources} reach={captain.households_reached} />

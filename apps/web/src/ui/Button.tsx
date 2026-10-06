@@ -2,13 +2,14 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Link } from "react-router";
 import { Icon, type IconName } from "./Icon";
 
-type Variant = "primary" | "soft" | "quiet" | "foam";
+type Variant = "primary" | "soft" | "quiet" | "foam" | "raised";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-tide text-foam h-14",
   soft: "bg-sky text-ink h-13",
   quiet: "bg-mist text-ink h-13",
   foam: "bg-foam text-ink h-14",
+  raised: "bg-ink-raised text-foam h-13", // secondary action inside a dark ink panel
 };
 
 function classes(variant: Variant, extra = "") {

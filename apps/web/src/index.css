@@ -114,12 +114,62 @@
   animation: toast-in 300ms var(--ease-drawer);
 }
 
+/* Water's back (wireframe motion #1): the water rises, then headline and card settle in. */
+@keyframes flood {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-390px); }
+}
+
+@utility flood {
+  animation: flood 900ms var(--ease-soft) both;
+}
+
+@utility rise-in {
+  animation: rise-in 360ms var(--ease-soft) both;
+}
+
+@utility drift-slow {
+  animation: drift 11s linear infinite;
+}
+
+@utility drift-fast {
+  animation: drift 7s linear infinite reverse;
+}
+
+/* LGU decision panel swap (motion #7). */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility panel-in {
+  animation: panel-in 260ms var(--ease-soft) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ripple {
     animation: none;
   }
   .toast-in {
     animation: none;
+  }
+  /* Every travel becomes a gentle fade; the water's surface keeps drifting (wireframe p.12). */
+  .flood, .rise-in, .panel-in {
+    animation: rise-fade 220ms ease both;
+  }
+  @keyframes rise-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
   *, *::before, *::after {
     transition-duration: 1ms !important;

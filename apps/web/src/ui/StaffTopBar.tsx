@@ -1,5 +1,6 @@
 // Dashboard top bar: drop wordmark, organisation, text tabs (DESIGN.md, Navigation).
 import type { ReactNode } from "react";
+import { NavLink } from "react-router";
 import { useCopy } from "../copy/i18n";
 import { DropMark } from "./Drop";
 
@@ -20,7 +21,20 @@ export function StaffTopBar({ org, tabs, right }: { org: string; tabs?: ReactNod
   );
 }
 
-export function StaffTab({ current, children }: { current?: boolean; children: ReactNode }) {
+export function StaffTab({ current, to, children }: { current?: boolean; to?: string; children: ReactNode }) {
+  if (to) {
+    return (
+      <NavLink
+        to={to}
+        end
+        className={({ isActive }) =>
+          `flex min-h-11 items-center rounded-full px-3 ${isActive ? "bg-mist font-bold text-ink" : "text-ink-soft"}`
+        }
+      >
+        {children}
+      </NavLink>
+    );
+  }
   return (
     <span
       aria-current={current ? "page" : undefined}

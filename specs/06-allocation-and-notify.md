@@ -39,7 +39,7 @@ export const NotificationPayload = z.object({
 export const ResidentConfirmation = z.object({
   disruption_id: z.string().uuid(),
   barangay_id: z.string(),
-  confirmed_by: z.enum(["resident", "barangay_water_captain"]),
+  confirmed_by: z.enum(["resident", "barangay_captain"]),
   channel: z.enum(["pwa", "sms_reply"]),
   restored: z.boolean(), // false => re-enters allocation, matches the "no, adjust" loop
   confirmed_at: z.string().datetime(),
@@ -56,7 +56,7 @@ export const EventLogEntry = z.object({
 ## Acceptance criteria
 - [ ] An LGU officer can view a confirmed disruption's ranked, affected barangays and confirm or override the suggested priority order — every override records `officer_id`, `overridden_from_suggested_rank`, and a timestamp (human-in-the-loop, auditable, not a black box)
 - [ ] Confirming an allocation writes a `deployed` event, then sends a resident notification via PWA push and SMS (Semaphore) for feature-phone users, in under 10 seconds end-to-end on seed data
-- [ ] A resident, or a barangay water captain on their behalf, can confirm receipt via the PWA or an SMS reply keyword — this writes a `resident_confirmed` event, and only this action is allowed to flip a disruption to `resolved`
+- [ ] A resident, or a barangay captain on their behalf, can confirm receipt via the PWA or an SMS reply keyword — this writes a `resident_confirmed` event, and only this action is allowed to flip a disruption to `resolved`
 - [ ] If `ResidentConfirmation.restored === false`, the disruption re-enters the allocation screen instead of auto-closing — matching the process-flow diagram's "no, adjust" loop back to Deploy response, and does **not** write a `resolved` event
 - [ ] A plain, timestamped allocation log (who was prioritized, when, by whom) is viewable end to end — hash-chaining is P1, added only if time remains
 

@@ -33,6 +33,23 @@ export function formatDay(date: Date | string): string {
   return dayFormat.format(new Date(date));
 }
 
+/** "11 h 17 m", "2 h 05 m", or "45 min" under an hour. */
+export function formatDuration(minutes: number): string {
+  const m = Math.round(Math.abs(minutes));
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`;
+}
+
+/** Whole minutes from a to b. */
+export function minutesBetween(a: Date | string, b: Date | string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60_000);
+}
+
+/** "Tuesday 6 October" */
+export function formatLongDate(date: Date | string): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date(date));
+}
+
 /** Today's date at hh:mm local time, as an ISO string. */
 export function todayAt(hours: number, minutes = 0, dayOffset = 0): string {
   const d = new Date();
