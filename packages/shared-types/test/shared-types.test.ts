@@ -53,8 +53,8 @@ const cases: [string, z.ZodTypeAny, unknown, unknown][] = [
     { latitude: 11.7, longitude: 124.8, start_date: "2026-06-01", end_date: "2026-07-01", daily: ["precipitation_sum"] },
     { latitude: 11.7, longitude: 124.8, start_date: "2026-06-01", end_date: "2026-07-01", daily: ["temperature"] }],
   ["TurbidityFeatures", T.TurbidityFeatures,
-    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: 12.5 },
-    { turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: -1 }],
+    { turbidity_ntu: 5, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: 12.5 },
+    { turbidity_ntu: 5, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: -1 }],
   ["DroughtFeatures", T.DroughtFeatures,
     { reservoir_pct: 50, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 3 },
     { reservoir_pct: 50, rain_14d_mm: 0, rain_30d_mm: 0, days_since_rain_over_5mm: 1.5 }],
@@ -271,5 +271,14 @@ describe("spec 04 extras + spec 03 endpoint extras (all optional, non-breaking)"
     expect(T.AffectedArea.safeParse({ ...aa, disruption_id: U, suggested_rank: 1, top_source: top }).success).toBe(true);
     expect(T.AffectedArea.safeParse({ ...aa, suggested_rank: null, top_source: null }).success).toBe(true);
     expect(T.AffectedArea.safeParse({ ...aa, suggested_rank: 0 }).success).toBe(false);
+  });
+});
+
+describe("TurbidityFeatures v3", () => {
+  it("has exactly the four v3 features (no turbidity_slope_per_hr) and strips the old key", () => {
+    expect(Object.keys(T.TurbidityFeatures.shape)).toEqual(["turbidity_ntu", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"]);
+    const out = T.TurbidityFeatures.parse({ turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: 1 });
+    expect("turbidity_slope_per_hr" in out).toBe(false);
+    expect(T.TurbidityFeatures.safeParse({ turbidity_ntu: 5, rain_24h_mm: 0, rain_72h_mm: 0 }).success).toBe(false);
   });
 });

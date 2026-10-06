@@ -1,16 +1,13 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { RainHourRow, ReadingRow } from "../../functions/_shared/predict.ts";
 
 const here = import.meta.dirname;
-export const REAL_VECTORS = resolve(here, "../../../ml/predictor_test_vectors.json");
-export const REAL_COEFS = resolve(here, "../../../ml/predictor_coefficients.json");
-const nonEmpty = (p: string) => existsSync(p) && statSync(p).size > 0;
-// Real v2 files are used once they exist AND carry the v2 feature set (forecast_rain_48h_mm); otherwise a TEMP v2-shaped fixture.
-const isV2 = (p: string) => nonEmpty(p) && readFileSync(p, "utf8").includes("forecast_rain_48h_mm");
-export const usingReal = isV2(REAL_VECTORS) && isV2(REAL_COEFS);
-export const vectorsPath = usingReal ? REAL_VECTORS : resolve(here, "fixtures/TEMP_predictor_test_vectors.json");
-export const loadVectors = () => JSON.parse(readFileSync(vectorsPath, "utf8"));
+// v3 files (model 2026-10-06.3): turbidity = turbidity_ntu, rain_24h_mm, rain_72h_mm, forecast_rain_48h_mm.
+export const VECTORS_PATH = resolve(here, "../../../ml/predictor_test_vectors.json");
+export const COEFS_PATH = resolve(here, "../../../ml/predictor_coefficients.json");
+export const loadVectors = () => JSON.parse(readFileSync(VECTORS_PATH, "utf8"));
+export const loadCoefs = () => JSON.parse(readFileSync(COEFS_PATH, "utf8"));
 
 export const HOUR = 3_600_000;
 export const iso = (ms: number) => new Date(ms).toISOString();

@@ -37,9 +37,9 @@ const DAY = 24 * HOUR;
 const MANILA_OFFSET_MS = 8 * HOUR; // Asia/Manila is UTC+8 year-round (no DST)
 const KULADOR = "kulador";
 const CARAMAYON_1 = "caramayon_1";
-const SLOPE_READINGS = 6;
 const RAIN_DAY_MM = 5; // "days since rain > 5 mm" threshold (spec 02)
 const FORECAST_HOURS = 48;
+const READING_STALE_MS = 6 * HOUR; // newest Kulador reading must be this close to as_of (v3: no more 6-reading window / slope)
 const RAIN_STALE_MS = 3 * HOUR; // newest hourly rain row must be this close to as_of
 const FALLBACK_LOOKBACK_MS = DAY;
 // Fallback thresholds: WSP p.43 shut-off (500) and half of it as "degraded" (matches ml/simulate_july.py's 250 rule).
@@ -51,17 +51,6 @@ export const LEVEL_MIDPOINT_P: readonly number[] = [0.1, 0.3, 0.5, 0.7, 0.9];
 const t = (iso: string): number => Date.parse(iso);
 /** Calendar-day index in Asia/Manila (days since epoch, local midnight boundaries). */
 export const manilaDay = (ms: number): number => Math.floor((ms + MANILA_OFFSET_MS) / DAY);
-
-/** Least-squares slope of y over x. Returns null with < 2 distinct x. */
-export function lsSlope(xs: number[], ys: number[]): number | null {
-  const n = xs.length;
-  if (n < 2) return null;
-  const mx = xs.reduce((a, b) => a + b, 0) / n;
-  const my = ys.reduce((a, b) => a + b, 0) / n;
-  let sxy = 0, sxx = 0;
-  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
-  return sxx === 0 ? null : sxy / sxx;
-}
 
 function upTo(readings: ReadingRow[], intake: string, asOfMs: number): ReadingRow[] {
   return readings
@@ -107,21 +96,16 @@ export function liveForecastAllowed(asOf: Date, now: Date): boolean {
   return d >= -60_000 && d <= RAIN_STALE_MS;
 }
 
+/** v3 (model 2026-10-06.3): turbidity_ntu, rain_24h_mm, rain_72h_mm, forecast_rain_48h_mm. null -> WSP fallback (missing turbidity/rain/forecast). */
 export function buildTurbidityFeatures(readings: ReadingRow[], rainHourly: RainHourRow[], forecastRain48hMm: number | null, asOf: Date): TurbidityFeatures | null {
   const asOfMs = asOf.getTime();
-  const kul = upTo(readings, KULADOR, asOfMs);
-  const window = kul.filter((r) => t(r.recorded_at) > asOfMs - SLOPE_READINGS * HOUR);
-  if (window.length < SLOPE_READINGS) return null; // sensor gap
-  const last6 = window.slice(-SLOPE_READINGS);
-  const latest = last6[last6.length - 1];
-  const x0 = t(last6[0].recorded_at);
-  const slope = lsSlope(last6.map((r) => (t(r.recorded_at) - x0) / HOUR), last6.map((r) => r.turbidity_ntu));
+  const latest = upTo(readings, KULADOR, asOfMs).pop();
+  if (!latest || asOfMs - t(latest.recorded_at) > READING_STALE_MS) return null; // no recent Kulador turbidity (sensor gap)
   const rain24 = rainSum(rainHourly, asOfMs, 24 * HOUR);
   const rain72 = rainSum(rainHourly, asOfMs, 72 * HOUR);
-  if (slope == null || rain24 == null || rain72 == null || forecastRain48hMm == null) return null;
+  if (rain24 == null || rain72 == null || forecastRain48hMm == null) return null;
   return {
     turbidity_ntu: latest.turbidity_ntu,
-    turbidity_slope_per_hr: slope,
     rain_24h_mm: rain24,
     rain_72h_mm: rain72,
     forecast_rain_48h_mm: forecastRain48hMm,

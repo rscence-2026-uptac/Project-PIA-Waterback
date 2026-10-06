@@ -1,0 +1,8 @@
+{
+  "name": "pia-waterback-demo",
+  "private": true,
+  "type": "module",
+  "description": "Stage demo / rehearsal driver for the PIA Waterback Edge Functions",
+  "engines": { "node": ">=20" },
+  "dependencies": { "@supabase/supabase-js": "^2" }
+}

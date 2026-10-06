@@ -1,14 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildDroughtFeatures, buildTurbidityFeatures, daysSinceRain, forecastRain48h, liveForecastAllowed, lsSlope, manilaDay } from "../../functions/_shared/predict.ts";
+import { buildDroughtFeatures, buildTurbidityFeatures, daysSinceRain, forecastRain48h, liveForecastAllowed, manilaDay } from "../../functions/_shared/predict.ts";
 import { HOUR, forecastSeries, iso, kuladorSeries, rainSeries } from "./helpers.ts";
 
 const ASOF = Date.parse("2026-07-10T12:00:00+08:00");
 const asOf = new Date(ASOF);
-
-describe("lsSlope", () => {
-  it("exact line", () => expect(lsSlope([0, 1, 2, 3], [1, 3, 5, 7])).toBeCloseTo(2, 12));
-  it("needs 2 points", () => expect(lsSlope([1], [1])).toBeNull());
-});
 
 describe("forecastRain48h", () => {
   it("sums (asOf, asOf+48h] on a full 48 h series", () => {
@@ -39,18 +34,24 @@ describe("liveForecastAllowed", () => {
   });
 });
 
-describe("buildTurbidityFeatures (v2)", () => {
+describe("buildTurbidityFeatures (v3: no slope)", () => {
   const rain = rainSeries(ASOF, 100, (h) => (h < 24 ? 1 : h < 72 ? 0.5 : 0));
-  it("computes slope, latest, windows, forecast", () => {
-    // turbidity rises 10 NTU/h over the last 6 readings (h=5..0 -> 4..54)
+  it("latest turbidity, rain windows, forecast; exactly the v3 feature set", () => {
     const r = kuladorSeries(ASOF, 40, (h) => ({ turbidity_ntu: 4 + (5 - Math.min(h, 5)) * 10 + (h > 5 ? -100 : 0) }));
     const f = buildTurbidityFeatures(r, rain, 12.5, asOf)!;
     expect(f.turbidity_ntu).toBe(54);
-    expect(f.turbidity_slope_per_hr).toBeCloseTo(10, 9);
     expect(f.rain_24h_mm).toBeCloseTo(24, 9); // 24 rows with ts in (asOf-24h, asOf]
     expect(f.rain_72h_mm).toBeCloseTo(24 + 48 * 0.5, 9);
     expect(f.forecast_rain_48h_mm).toBe(12.5);
-    expect(Object.keys(f)).toEqual(["turbidity_ntu", "turbidity_slope_per_hr", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"]);
+    expect(Object.keys(f)).toEqual(["turbidity_ntu", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"]);
+  });
+  it("a single reading is enough (no 6-reading window)", () => {
+    const f = buildTurbidityFeatures(kuladorSeries(ASOF, 1, () => ({ turbidity_ntu: 77 })), rain, 3, asOf)!;
+    expect(f.turbidity_ntu).toBe(77);
+  });
+  it("a gap inside the last 6 h does not matter, only the newest reading does", () => {
+    const r = kuladorSeries(ASOF, 10).filter((x) => x.recorded_at !== iso(ASOF - 2 * HOUR));
+    expect(buildTurbidityFeatures(r, rain, 0, asOf)).not.toBeNull();
   });
   it("clarifier inflow is no longer a model input (missing inflow still builds features)", () => {
     const r = kuladorSeries(ASOF, 10, () => ({ clarifier_inflow_lps: null }));
@@ -61,9 +62,11 @@ describe("buildTurbidityFeatures (v2)", () => {
       ...kuladorSeries(ASOF, 10, () => ({ intake_id: "caramayon_1", turbidity_ntu: 700 }))];
     expect(buildTurbidityFeatures(r, rain, 0, asOf)!.turbidity_ntu).toBe(4);
   });
-  it("null on <6 readings in last 6h (gap)", () => {
-    const r = kuladorSeries(ASOF, 10).filter((x) => x.recorded_at !== iso(ASOF - 2 * HOUR));
-    expect(buildTurbidityFeatures(r, rain, 0, asOf)).toBeNull();
+  it("null when no Kulador reading, or the newest is older than 6 h", () => {
+    expect(buildTurbidityFeatures([], rain, 0, asOf)).toBeNull();
+    expect(buildTurbidityFeatures(kuladorSeries(ASOF - 7 * HOUR, 10), rain, 0, asOf)).toBeNull();
+    expect(buildTurbidityFeatures(kuladorSeries(ASOF - 6 * HOUR, 10), rain, 0, asOf)).not.toBeNull();
+    expect(buildTurbidityFeatures(kuladorSeries(ASOF, 10, () => ({ intake_id: "caramayon_1" })), rain, 0, asOf)).toBeNull();
   });
   it("null when forecast missing", () => {
     expect(buildTurbidityFeatures(kuladorSeries(ASOF, 10), rain, null, asOf)).toBeNull();

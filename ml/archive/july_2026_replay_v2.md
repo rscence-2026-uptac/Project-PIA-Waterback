@@ -1,6 +1,6 @@
-# July 2026 replay (v3; simulated intake series, real Open-Meteo rain)
+# July 2026 replay (v2; simulated intake series, real Open-Meteo rain)
 
-Both models run over `ml/simulate_july.py` output (SIMULATED readings; not CWD telemetry) with REAL July rain. Trailing rain windows (24h/72h/14d/30d, days since >=5 mm) use real June 2026 rain as context (`ml/data/openmeteo_2026-06.json`).
+Both models run over `ml/simulate_july.py` output (SIMULATED readings; not CWD telemetry) with REAL July rain. Trailing rain windows (24h/72h/14d/30d, days since >=5 mm) use real June 2026 rain as context (`ml/data/openmeteo_2026-06.json`); the Kulador slope uses July readings only (June readings are unknown), so it is 0 for the first hours.
 
 **Forecast feature caveat.** `forecast_rain_48h_mm` comes from Open-Meteo's Historical Forecast archive (`ml/data/openmeteo_histforecast_2026-06-07.json`): stitched first hours of successive model runs, not a true 24-48 h-ahead forecast. For this window it is value-identical to the archive rain, so the main replay below is an **oracle-forecast upper bound**. The sensitivity section re-runs it with the training forecast-error model (noisy forecasts), which is the honest expectation for real use.
 
@@ -10,7 +10,7 @@ Both models run over `ml/simulate_july.py` output (SIMULATED readings; not CWD t
 - p >= 0.4 first reached **Jul 01 00:00** (series start, Jul 01 00:00). The alarm is **unbroken from the first hour of July through the onset**, so within the seeded July series the lead time is only a **lower bound of 40 h, censored at the series start**, not a measured lead time.
 - Pre-roll diagnostic (June+July simulated as one series with different noise; June readings are not in the seed): p >= 0.4 alarm run containing the onset starts **Jun 26 14:00** (146 h before onset); last hour with p < 0.4 before it: Jun 26 13:00; share of June hours alarming: 65%. Only that last-below-0.4 hour supports a genuine lead claim.
 - Event recall (hours with a turbidity label in the next 48 h): 1.00; precision 0.87.
-- **Non-event alarm rate for the whole month** (p >= 0.4 on hours with no turbidity label in the next 48 h; last 48 h excluded, no look-ahead): **21.7%** (63 of 290 h) -> former v2 gate < 20% (reported, no longer a gate): **above 20%**. Excluding also the 48-72 h band before an event (an alarm 2-3 days ahead is early warning, not noise): 14.7% (218 h).
+- **Non-event alarm rate for the whole month** (p >= 0.4 on hours with no turbidity label in the next 48 h; last 48 h excluded, no look-ahead): **21.7%** (63 of 290 h) -> gate < 20%: **FAIL**. Excluding also the 48-72 h band before an event (an alarm 2-3 days ahead is early warning, not noise): 14.7% (218 h).
 
 ### Episode lead times (event episodes merged when < 48 h apart)
 
@@ -48,7 +48,7 @@ On Jul 8-12 the same pattern: one alarm run from Jul 06 05:00 covers the Jul 8 a
 
 ## Sensitivity: noisy forecasts (training error model, 20 seeds)
 
-Non-event alarm rate: median 25.7% (range 19.7-31.0%); event recall median 0.92; event precision median 0.83. Share of seeds under the former 20% target: 5%.
+Non-event alarm rate: median 25.9% (range 19.7-31.0%); event recall median 0.92; event precision median 0.83. Share of seeds under the 20% gate: 5%.
 
 ## Drought model on the July crisis
 

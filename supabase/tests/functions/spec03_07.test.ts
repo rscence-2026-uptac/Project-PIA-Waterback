@@ -16,7 +16,7 @@ const BARANGAYS: BarangayRow[] = JSON.parse(readFileSync(resolve(import.meta.dir
 const NOW = new Date("2026-07-10T04:00:00Z");
 const U = "3f1c2a40-9b7e-4c1a-8d2e-5a6b7c8d9e01";
 
-// ---- predictor data: calm (signal 0) vs. high turbidity at Kulador (>= 500 NTU fallback path is not needed: forecast + slope present) ----
+// ---- predictor data: calm (signal 0) vs. high turbidity at Kulador (>= 500 NTU fallback path is not needed: forecast present) ----
 const calmData = async (_f: Date, to: Date) => ({
   readings: kuladorSeries(to.getTime(), 240), rainHourly: rainSeries(to.getTime(), 90 * 24, (h) => (h >= 96 && h < 120 ? 10 : 0.2)), forecastHourly: forecastSeries(to.getTime(), 0.05),
 });
