@@ -105,10 +105,23 @@ No spec defines it. The app uses `apps/web/src/lib/waterState.ts`:
 | 1–2 | Heads-up ("Store water tonight") |
 | 3–4 | Interrupted, or "Planned repair" when `cause = repair` |
 
+With the predictor now system-wide (`scope: "system"`), every served barangay gets the same level. Per-barangay differences only come after allocation. For example, a barangay whose residents confirmed water is back shows "Water's back".
+
 ### 8. Officer identity
 `officer_id` is a mock (`mock-officer-1`, shown as "[Officer name]" like the wireframe) until the LGU seed accounts / Supabase Auth exist. Tell Dev B the auth approach and the screen will read the signed-in officer.
 
-With the predictor now system-wide (`scope: "system"`), every served barangay gets the same level. Per-barangay differences only come after allocation. For example, a barangay whose residents confirmed water is back shows "Water's back".
+### 9. Spec 07 live dashboard: Realtime + `barangay_id` on `event_log` (new)
+- **Where it is:** the CDRRMO live dashboard is built at **`/lgu/live`**. `/admin` redirects there.
+- **Data it needs:**
+  - **`fetchDashboardSnapshot()`** → `DashboardSnapshot`: one row per served barangay with `signal_level`, `status` and `last_event_at`.
+  - **`subscribeEventLog()`** → spec 07's `RealtimeEvent` for each new `event_log` row.
+- **Gap:** `RealtimeEvent` needs **`barangay_id`**, but `event_log` (migration `…000001_init.sql`) has no such column.
+- **Ask:** either add `barangay_id text references barangays` to `event_log`, or always write it into `payload_json.barangay_id`.
+  - Without it, the dashboard can't tell which card an event belongs to.
+  - System-wide events (`predicted`, `confirmed`) can be written once per barangay, or sent with a special id the dashboard fans out. Say which.
+- **Already done:** Realtime is already on for `event_log` in your publication block. 👍
+- **Swap point:** `apps/web/src/realtime/eventFeed.ts` holds a `// MOCK:` simulator for now (an event every ~4 s; it drops when the browser goes offline). Replace the two functions there; the screen and hook don't change.
+- **Install needed:** `@supabase/supabase-js` in `apps/web`, plus the project URL and anon key (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). Dev B will add them once you share the keys.
 
 ## Done on the Dev B side (FYI, no action)
 
@@ -140,4 +153,4 @@ With the predictor now system-wide (`scope: "system"`), every served barangay ge
 | `/operator` | 05 | p.9 |
 | `/lgu` allocation | 06 | p.10 |
 | `/lgu/event` event record + allocation log | 06, MEM-1 | p.11 |
-| `/admin` | 07 (placeholder) | — |
+| `/lgu/live` live dashboard (`/admin` redirects) | 07 | none (built from DESIGN.md) |

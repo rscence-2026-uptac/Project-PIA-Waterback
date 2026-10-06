@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import "@fontsource-variable/bricolage-grotesque/wght.css";
 import "@fontsource/atkinson-hyperlegible/400.css";
 import "@fontsource/atkinson-hyperlegible/700.css";
@@ -12,7 +12,7 @@ import { HistoryScreen } from "./screens/resident/HistoryScreen";
 import { SettingsScreen } from "./screens/resident/SettingsScreen";
 import { CaptainScreen } from "./screens/captain/CaptainScreen";
 import { OperatorScreen } from "./screens/operator/OperatorScreen";
-import { AdminScreen } from "./screens/admin/AdminScreen";
+import { LiveDashboardScreen } from "./screens/lgu/LiveDashboardScreen";
 import { FixedLanguage } from "./copy/FixedLanguage";
 import { AllocationScreen } from "./screens/lgu/AllocationScreen";
 import { EventRecordScreen } from "./screens/lgu/EventRecordScreen";
@@ -35,7 +35,8 @@ const router = createBrowserRouter([
   // LGU / CDRRMO screens are English only; residents and captains keep the language choice.
   { path: "/lgu", element: <FixedLanguage language="english"><AllocationScreen /></FixedLanguage> },
   { path: "/lgu/event", element: <FixedLanguage language="english"><EventRecordScreen /></FixedLanguage> },
-  { path: "/admin", element: <FixedLanguage language="english"><AdminScreen /></FixedLanguage> },
+  { path: "/lgu/live", element: <FixedLanguage language="english"><LiveDashboardScreen /></FixedLanguage> },
+  { path: "/admin", element: <Navigate to="/lgu/live" replace /> },
 ]);
 
 createRoot(document.getElementById("root")!).render(

@@ -20,6 +20,7 @@ export function LguLayout({ children }: { children: ReactNode }) {
               {t("lgu.event_pill", { id: OPEN_EVENT.code, cause: t(`lgu.cause.${OPEN_EVENT.cause}`) })}
             </Pill>
             <StaffTab to="/lgu">{t("lgu.tab_priorities")}</StaffTab>
+            <StaffTab to="/lgu/live">{t("lgu.tab_live")}</StaffTab>
             <StaffTab to="/lgu/event">{t("lgu.tab_records")}</StaffTab>
           </>
         }

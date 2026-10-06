@@ -22,6 +22,11 @@ export function formatWindow(start: Date | string, end: Date | string): string {
     : `${a.clock} ${a.period}–${b.clock} ${b.period}`;
 }
 
+/** "5:24:10 PM", for live feeds where seconds matter. */
+export function formatTimeSeconds(date: Date | string): string {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true }).format(new Date(date));
+}
+
 /** "4 PM" / "5:30 PM" */
 export function formatShortTime(date: Date | string): string {
   const { clock, period } = shortTime(new Date(date));
