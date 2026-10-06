@@ -18,7 +18,7 @@ export const WSP_CONSTANTS = {
 
 export const ReadingSeedRow = z.object({
   recorded_at: z.string().datetime(),
-  purok_id: z.string(),
+  barangay_id: z.string(),
   turbidity_ntu: z.number().nonnegative(),
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
   reservoir_pct: z.number().min(0).max(100),

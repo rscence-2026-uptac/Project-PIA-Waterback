@@ -11,7 +11,7 @@ Yes — they solve different halves of the same problem, and merging them is str
 | Dimension | PIA Water-Back (your draft) | Tubig Patas (prior sessions) | Verdict |
 | --- | --- | --- | --- |
 | Causal diagnosis | Flags *why* water stopped — turbidity spike, drought-driven low source level, or repair work — from turbidity + plant status + rainfall + dry-spell data | Assumed a signal level existed but didn't separate the three causes explicitly | Keep PIA's three-cause diagnosis; it's the most concrete, demoable logic either draft has |
-| Who it covers | Only CWD's existing piped customers (the water provider's own service area) | Explicitly includes purok/barangay households *outside* the piped network via ranked backup sources | Keep Tubig Patas's coverage — this is the actual "equitable access" gap the brief names, and PIA Water-Back alone would repeat the mistake we already caught in the shallow outage-reporting draft |
+| Who it covers | Only CWD's existing piped customers (the water provider's own service area) | Explicitly includes barangay households *outside* the piped network via ranked backup sources | Keep Tubig Patas's coverage — this is the actual "equitable access" gap the brief names, and PIA Water-Back alone would repeat the mistake we already caught in the shallow outage-reporting draft |
 | Allocation logic | LGU sets priorities (who gets water first, rationing, backup routing); water provider applies them to its distribution schedule | No explicit LGU-priority-setting step; ranking was automatic/rules-based with no human-in-the-loop override | Keep PIA's human-in-the-loop allocation step — judges will ask "who decides," and an LGU officer confirming priorities beats a fully automated black box |
 | Resident experience | Status, reason, duration estimate, storage schedule, nearest alternative sources | Same, plus offline-first PWA and SMS keyword access for feature phones | Keep Tubig Patas's access channels — PIA Water-Back never specifies how a resident with no app or no signal receives any of this |
 | Institutional memory | Explicit: once supply is restored, logs cause, duration, affected areas so the LGU prepares for next time | Present but less developed (mentioned as a side feature) | Keep PIA's framing as a first-class step, not an afterthought — it's a strong Sustainability/Scalability answer (10% L1, 13% L2) |
@@ -31,7 +31,7 @@ This is not an isolated or invented crisis. DENR Secretary Juan Miguel Cuna used
 | Role | Who they actually are | Channel/device | Core decision the system supports |
 | --- | --- | --- | --- |
 | Resident | A household inside or outside CWD's piped network, including elderly/PWD residents (PIA Water-Back's "user-friendly for elderly" note) | Offline-first PWA app, or SMS keyword for feature phones | When will my water come back, should I store water now, and where's my nearest backup source |
-| Purok water captain | A barangay-level volunteer or BWSA officer who already does this informally | Same PWA, works offline, syncs when connectivity returns | Which of my purok's backup sources (Plan A/B/C/D) is live right now |
+| Barangay water captain | A barangay-level volunteer or BWSA officer who already does this informally | Same PWA, works offline, syncs when connectivity returns | Which of my barangay's backup sources (Plan A/B/C/D) is live right now |
 | Water provider operator (CWD / rural waterworks) | The plant/distribution staff who already log turbidity, plant status, and reservoir levels | Admin web dashboard | Is a disruption starting, and what's driving it — turbidity, low source, or repair work |
 | LGU official (CDRRMO / MENRO) | The person who actually has the authority PIA Water-Back assumes: setting allocation priority during a disruption | Admin web dashboard, real-time | Who gets water first, how is limited supply rationed, where does backup water go |
 | Station/Patas Partner (optional, if time allows) | A refilling-station or water-trucking operator willing to serve as a listed backup source | SMS keywords only (no app needed) | Confirming they're open/have stock when the system lists them as someone's backup plan |
@@ -42,27 +42,27 @@ This is not an isolated or invented crisis. DENR Secretary Juan Miguel Cuna used
 
 - P0 — Operator dashboard: turbidity, plant status, reservoir level entry (seeded from CWD's 2022 WSP thresholds: 5/500 NTU, clarifier capacity ≈ 46 L/s)
 - P0 — Rainfall + dry-spell data pulled from Open-Meteo, feeding the same disruption predictor
-- P1 — Public-facing "current status" view, purok by purok, for residents checking before a trip to fetch water
+- P1 — Public-facing "current status" view, barangay by barangay, for residents checking before a trip to fetch water
 
 **Intervention — a disruption is flagged, cause is diagnosed**
 
 - P0 — Disruption predictor: a lightweight logistic-regression model outputs separate turbidity-risk and drought-risk probabilities (0–1), mapped to signal levels 0–4; repair work stays operator-logged, not predicted — see the Sprint plan's model-design section
-- P0 — Affected-area mapping: which puroks/barangays are hit, including households outside CWD's piped network (Tubig Patas's equity layer)
-- P0 — Continuity-chain lookup per affected purok: ranked backup sources (Plan A/B/C/D), scored safety → time (WHO/UNICEF JMP 30-minute round-trip benchmark) → cost
+- P0 — Affected-area mapping: which barangays are hit, including households outside CWD's piped network (Tubig Patas's equity layer)
+- P0 — Continuity-chain lookup per affected barangay: ranked backup sources (Plan A/B/C/D), scored safety → time (WHO/UNICEF JMP 30-minute round-trip benchmark) → cost
 - P1 — Vulnerable-groups and critical-facilities flag within the affected area (elderly households, health stations, schools)
 
 **Action — LGU allocates, residents are served**
 
 - P0 — LGU allocation-priority screen: an officer reviews the flagged disruption, confirms or adjusts who's served first, and deploys the response (dispatch, trucking, backup-source activation) — human-in-the-loop, not a black box
 - P0 — Resident notification: status, cause, expected duration, when to store water, nearest alternative source — pushed via the PWA and via SMS keyword for feature-phone users
-- P0 — Resident confirmation: a resident, or the purok water captain on their behalf, confirms access was restored via the PWA or an SMS reply keyword — the only confirmation channel for the \~40% of households outside CWD's piped telemetry; this is what triggers Log the event in the process flow below
+- P0 — Resident confirmation: a resident, or the barangay water captain on their behalf, confirms access was restored via the PWA or an SMS reply keyword — the only confirmation channel for the \~40% of households outside CWD's piped telemetry; this is what triggers Log the event in the process flow below
 - P1 — Simple allocation log (who was prioritized, when, by whom) — scoped down from a full cryptographic ledger to an auditable, timestamped table; upgrade to hash-chaining only if time remains
 - P1 — Resident complaint channel: report bad water quality, an unfair allocation, or a no-show source — routed to the LGU dashboard for resolution instead of auto-closing the disruption; a redeploy sends the response back through Action
 
 **Loop back — institutional memory**
 
 - P0 — Post-event record: cause, duration, affected areas, saved once a resident confirms access is restored — this closes PIA Water-Back's own loop, feeds the disruption predictor, and becomes next cycle's Prevention baseline
-- P1 — Simple trend view: how often and how long each purok has lost access, for the LGU's own planning
+- P1 — Simple trend view: how often and how long each barangay has lost access, for the LGU's own planning
 
 Cut from this build to protect the 24-hour window: the LGU-type A/B/C multi-tenant switch, the full emergency water-credit economy, and WPDx export — all good Level 2 talking points if judges ask "what's next," but not demo-critical for Level 1.
 
