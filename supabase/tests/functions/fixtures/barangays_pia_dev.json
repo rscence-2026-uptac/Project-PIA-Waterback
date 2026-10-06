@@ -1,0 +1,515 @@
+[
+ {
+  "barangay_id": "albalate",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "bagongon",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "bangon",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "basiao",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "buluan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "bunu-anan",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cabugawan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cagudalo",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cagusipan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cagutian",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cagutsan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "canhawan-gote",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "canlapwas",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cawayan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "cinco",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "darahuway-dako",
+  "zone": null,
+  "service_level": "level_i",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "darahuway-guti",
+  "zone": null,
+  "service_level": "level_i",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "estaka",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "guindapunan",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "guinsorongan",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "ibol",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "iguid",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "lagundi",
+  "zone": null,
+  "service_level": "level_i",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "libas",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "lobo",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "manguehay",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "maulong",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "mercedes",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "mombon",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "munoz",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "new-mahayag",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "old-mahayag",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "palanyogon",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "pangdan",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "payao",
+  "zone": null,
+  "service_level": "level_i",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-01",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-02",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-03",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-04",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-05",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-06",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-07",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-08",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-09",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-10",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-11",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-12",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "poblacion-13",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "pupua",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "rama",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "san-andres",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "san-pablo",
+  "zone": null,
+  "service_level": "level_iii",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "san-roque",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "san-vicente",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "silanga",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "socorro",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ },
+ {
+  "barangay_id": "totoringon",
+  "zone": null,
+  "service_level": "unserved",
+  "piped_households": null,
+  "unpiped_households": null,
+  "coverage_source": "unknown",
+  "critical_facilities": []
+ }
+]

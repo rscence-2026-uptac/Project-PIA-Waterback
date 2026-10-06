@@ -411,3 +411,7 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Spec 06: the SMS gateway calls this without a Supabase JWT; it is protected by ?token=SMS_WEBHOOK_SECRET.
+[functions.sms-webhook]
+verify_jwt = false

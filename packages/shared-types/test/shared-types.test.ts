@@ -170,3 +170,63 @@ describe("contract edge cases", () => {
     expect(T.PredictorOutput.safeParse({ ...po, forecast_source: "guess" }).success).toBe(false);
   });
 });
+
+describe("Dev B handoff 2026-10-06 schema changes", () => {
+  const dis = { id: U, started_at: TS, resolved_at: null, cause: "turbidity", p_turbidity: 0.7, p_drought: 0.1, signal_level: 3, status: "confirmed" };
+  const ev = { id: U, disruption_id: U, event_type: "confirmed", actor: "system", occurred_at: TS };
+  const aa = { barangay_id: "p1", zone: null, service_level: "level_iii", low_pressure_zone: false, disruption_id: U, signal_level: 3, piped_households_affected: null, unpiped_households_affected: null, coverage_confidence: "unknown", vulnerable_flag: false };
+
+  it("Reading treated_turbidity_ntu / client_local_id", () => {
+    expect(T.Reading.parse(reading).treated_turbidity_ntu).toBeNull();
+    expect(T.Reading.parse(reading).client_local_id).toBeNull();
+    const r = T.Reading.parse({ ...reading, treated_turbidity_ntu: 2.5, client_local_id: "local-1" });
+    expect(r.treated_turbidity_ntu).toBe(2.5);
+    expect(r.client_local_id).toBe("local-1");
+    expect(T.Reading.safeParse({ ...reading, treated_turbidity_ntu: -1 }).success).toBe(false);
+  });
+  it("EventLog barangay_id nullable + client_local_id", () => {
+    expect(T.EventLog.parse(ev).barangay_id).toBeNull();
+    expect(T.EventLog.parse({ ...ev, barangay_id: "p1", client_local_id: "c1" })).toMatchObject({ barangay_id: "p1", client_local_id: "c1" });
+    expect(T.EventLog.safeParse({ ...ev, barangay_id: 5 }).success).toBe(false);
+  });
+  it("Disruption timing fields default null and accept datetimes", () => {
+    const d = T.Disruption.parse(dis);
+    for (const k of ["window_start", "window_end", "likely_at", "next_update_at", "heads_up_from"] as const) expect(d[k]).toBeNull();
+    expect(T.Disruption.parse({ ...dis, window_start: TS, window_end: TS, likely_at: TS, next_update_at: TS, heads_up_from: TS }).likely_at).toBe(TS);
+    expect(T.Disruption.safeParse({ ...dis, likely_at: "5pm" }).success).toBe(false);
+  });
+  it("Barangay wsp_name", () => {
+    expect(T.Barangay.parse(brgy).wsp_name).toBeNull();
+    expect(T.Barangay.parse({ ...brgy, wsp_name: "Darahuway Dako" }).wsp_name).toBe("Darahuway Dako");
+    expect(T.Barangay.parse({ ...brgy, service_level: "unserved", zone: null, piped_households: null }).service_level).toBe("unserved");
+  });
+  it("AffectedArea household counts nullable", () => {
+    expect(T.AffectedArea.safeParse(aa).success).toBe(true);
+    expect(T.AffectedArea.safeParse({ ...aa, piped_households_affected: -1 }).success).toBe(false);
+    expect(T.AffectedArea.safeParse({ ...aa, unpiped_households_affected: undefined }).success).toBe(false);
+  });
+  it("zod 4 string formats", () => {
+    expect(T.RainfallDaily.safeParse({ date: "2026-13-01", precipitation_mm: 1 }).success).toBe(false);
+    expect(T.RainfallHourly.safeParse({ ts: "2026-07-01T00:00:00", precipitation_mm: 1 }).success).toBe(false); // offset required
+    expect(T.PredictorCoefficients.safeParse({ bias: 0, weights: { a: 1 } }).success).toBe(true);
+  });
+});
+
+describe("residentState", () => {
+  it.each([
+    [0, "turbidity", "level_iii", "flowing", false],
+    [1, "turbidity", "level_iii", "heads_up", true],
+    [2, "drought", "level_i", "heads_up", true],
+    [3, "turbidity", "level_iii", "interrupted", false],
+    [4, "drought", "level_i", "interrupted", false],
+    [3, "repair", "level_iii", "planned_repair", false],
+    [4, "repair", "level_i", "planned_repair", false],
+    [1, "repair", "level_iii", "heads_up", true],
+    [0, null, "level_iii", "flowing", false],
+    [0, null, "unserved", "not_on_network", false],
+    [1, "turbidity", "unserved", "not_on_network", false],
+    [2, "turbidity", "unserved", "not_on_network", true],
+    [4, "repair", "unserved", "not_on_network", true],
+  ] as const)("signal %s cause %s %s -> %s heads_up=%s", (sig, cause, svc, state, heads) =>
+    expect(T.residentState(sig, cause, svc)).toEqual({ state, heads_up: heads }));
+});

@@ -1,4 +1,5 @@
 export * from "./constants";
+export * from "./resident-state";
 export * from "./schemas/data-model";
 export * from "./schemas/seed";
 export * from "./schemas/predictor";

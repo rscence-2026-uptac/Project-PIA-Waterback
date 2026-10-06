@@ -1,5 +1,22 @@
 -- Run after all seeds (spec 01). Read-only assertions.
 do $$ begin
+  assert (select count(*) from barangays) = 57, 'barangays = 57 (Catbalogan)';
+  assert (select count(*) from barangays where service_level <> 'unserved') = 26, '26 served';
+  assert (select count(*) from barangays where service_level = 'unserved') = 31, '31 unserved';
+  assert (select count(*) from barangays where service_level = 'level_i') = 4, '4 level_i';
+  assert (select count(*) from barangays where service_level = 'unserved'
+          and (zone is not null or piped_households is not null or unpiped_households is not null or lat is not null)) = 0, 'unserved rows carry no guessed data';
+  assert (select count(*) from barangays where service_level = 'unserved' and coverage_source <> 'unknown') = 0, 'unserved coverage unknown';
+  assert (select count(*) from barangays where barangay_id in ('canlapwas','munoz','guindapunan','bunu-anan','darahuway-guti','darahuway-dako','poblacion-05')) = 7, 'kept ids';
+  assert (select name from barangays where barangay_id = 'poblacion-05') = 'Poblacion 5 (Barangay 5)', 'official name';
+  assert (select name from barangays where barangay_id = 'canlapwas') = 'Canlapwas (Poblacion)', 'official name';
+  assert (select name from barangays where barangay_id = 'munoz') = 'Muñoz (Poblacion 14)', 'official name';
+  assert (select name from barangays where barangay_id = 'guindapunan') = 'Guindaponan', 'official name';
+  assert (select name from barangays where barangay_id = 'bunu-anan') = 'Bunuanan', 'official name';
+  assert (select name from barangays where barangay_id = 'darahuway-guti') = 'Darahuway Gote', 'official name';
+  assert (select name from barangays where barangay_id = 'darahuway-dako') = 'Darahuway Daco', 'official name';
+  assert (select wsp_name from barangays where barangay_id = 'darahuway-dako') = 'Darahuway Dako', 'wsp alias';
+  assert (select wsp_name from barangays where barangay_id = 'guindapunan') = 'Guindapunan', 'wsp alias';
   assert (select count(*) from readings) = 2976, 'readings = 31*24*4';
   assert (select count(*) from readings where not is_simulated) = 0, 'all seeded readings flagged simulated';
   assert (select count(*) from rainfall_daily) = 61, 'rainfall_daily = 30 June + 31 July';

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // specs/01-seed-data.md (WSP_CONSTANTS lives in ../constants.ts)
 export const ReadingSeedRow = z.object({
-  recorded_at: z.string().datetime(),
+  recorded_at: z.iso.datetime(),
   intake_id: z.string(),
   turbidity_ntu: z.number().nonnegative(),
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
