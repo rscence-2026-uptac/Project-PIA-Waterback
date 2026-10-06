@@ -13,7 +13,7 @@ import { StatusChip } from "../../ui/Chip";
 import { DropGauge } from "../../ui/Drop";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
-import { CostLabel, LiveStatusLabel, SafetyLabel } from "../../ui/SourceBits";
+import { CostLabel, LiveStatusLabel, SafetyLabel, SimulatedLabel } from "../../ui/SourceBits";
 import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
 import { ConnectionLine, ResidentHeader } from "./ResidentLayout";
 import { WaterBackView } from "./WaterBackView";
@@ -302,6 +302,7 @@ function RunOutSection({ snapshot }: { snapshot: BarangaySnapshot }) {
           <span>{t("source.walk", { n: nearest.walk_minutes })}</span>
           <CostLabel source={nearest} />
         </p>
+        {nearest.is_simulated && <p className="mt-2"><SimulatedLabel source={nearest} /></p>}
         <p className="mt-2 text-[15px] text-ink-soft">
           {t("source.checked_by", { name: nearest.reported_by, time: formatTime(nearest.reported_at) })}
         </p>

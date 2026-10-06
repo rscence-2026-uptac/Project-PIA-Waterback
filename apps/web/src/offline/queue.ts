@@ -2,9 +2,13 @@
 import { OfflineQueueItem } from "../contracts/spec05";
 import { db } from "./db";
 
-export async function enqueue(kind: OfflineQueueItem["kind"], payload: Record<string, unknown>) {
+export async function enqueue(
+  kind: OfflineQueueItem["kind"],
+  payload: Record<string, unknown>,
+  localId: string = crypto.randomUUID(), // pass one in when the payload must carry the same id
+) {
   const item = OfflineQueueItem.parse({
-    local_id: crypto.randomUUID(),
+    local_id: localId,
     kind,
     payload,
     queued_at: new Date().toISOString(),

@@ -31,6 +31,7 @@ export function ConfirmWaterBack({ disruptionId, barangayId, confirmedBy, title 
   );
 
   async function answer(restored: boolean) {
+    const localId = crypto.randomUUID();
     const confirmation = ResidentConfirmation.parse({
       disruption_id: disruptionId,
       barangay_id: barangayId,
@@ -38,8 +39,9 @@ export function ConfirmWaterBack({ disruptionId, barangayId, confirmedBy, title 
       channel: "pwa",
       restored,
       confirmed_at: new Date().toISOString(),
+      client_local_id: localId,
     });
-    await enqueue("resident_confirmation", confirmation);
+    await enqueue("resident_confirmation", confirmation, localId);
   }
 
   return (

@@ -107,6 +107,8 @@ function source(
 ): BackupSource {
   return {
     ...fields,
+    provenance: "placeholder", // MOCK: every wireframe source is sample data until the rank-chain feed is wired
+    is_simulated: true,
     rank,
     letter,
     source_id: `00000000-0000-4000-8000-00000000000${rank}`,
