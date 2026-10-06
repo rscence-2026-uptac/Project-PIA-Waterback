@@ -489,7 +489,7 @@ const ROWS = [
   ["operator.confirm", "Confirm disruption", "Kumpirmahin ang pagkaantala", "Kumpirmaha an pagkaantala"],
   ["operator.confirming", "Confirming…", "Kinukumpirma…", "Gin-kukumpirma…"],
   ["operator.confirm_done", "Disruption confirmed. Backup sources ranked for {n} barangays.", "Nakumpirma ang pagkaantala. Nairanggo ang reserbang tubig para sa {n} barangay.", "Nakumpirma an pagkaantala. Nairanggo an reserba nga tubig para ha {n} ka barangay."],
-  ["operator.confirm_rank_failed", "Disruption confirmed, but ranking the backup sources failed. {reason}", "Nakumpirma ang pagkaantala, pero nabigo ang pag-ranggo ng reserbang tubig. {reason}", "Nakumpirma an pagkaantala, kundi nahimo an pag-ranggo han reserba nga tubig. {reason}"],
+  ["operator.confirm_rank_failed", "Disruption confirmed, but ranking the backup sources failed. {reason}", "Nakumpirma ang pagkaantala, pero nabigo ang pag-ranggo ng reserbang tubig. {reason}", "Nakumpirma an pagkaantala, kundi waray nahimo an pag-ranggo han reserba nga tubig. {reason}"],
   ["operator.confirm_error", "Could not confirm. {reason}", "Hindi makumpirma. {reason}", "Diri makumpirma. {reason}"],
   ["operator.live_off", "Not connected to the server. Readings stay on this device and send when it is connected.", "Hindi konektado sa server. Mananatili sa device ang mga reading at ipapadala kapag konektado.", "Diri konektado ha server. Magpapabilin ha device an mga reading ngan ipapadara kun konektado na."],
   ["operator.sample", "Sample data. The charts, detector and sample readings on this screen are not from the server.", "Sample data. Ang mga chart, detector at sample na reading dito ay hindi galing sa server.", "Sample data. An mga chart, detector ngan sample nga reading dinhi diri tikang ha server."],
@@ -505,6 +505,7 @@ const ROWS = [
   ["lgu.result_error", "Nothing was saved. {reason}", "Nothing was saved. {reason}", "Nothing was saved. {reason}"],
   ["lgu.decision_done_body_live", "Residents were notified in the app. Watch their answers on the live board.", "Residents were notified in the app. Watch their answers on the live board.", "Residents were notified in the app. Watch their answers on the live board."],
   ["lgu.decision_partial_body", "Priorities are saved. Residents have not been notified yet.", "Priorities are saved. Residents have not been notified yet.", "Priorities are saved. Residents have not been notified yet."],
+  ["lgu.window_span","{from} to {to}","{from} to {to}","{from} to {to}"],
 ] as const;
 
 export type CopyKeyName = (typeof ROWS)[number][0];

@@ -6,6 +6,9 @@ import type { CopyKeyName } from "../../copy/strings";
 import { OperatorReadingForm } from "../../contracts/spec05";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
 import { INTAKES, OPERATOR, type IntakeId, type IntakeReading } from "../../data/mock";
+import { ApiError, backendConfigured, callFunction } from "../../lib/api";
+import { syncQueue } from "../../offline/sync";
+import { useLiveSnapshot } from "../../realtime/liveApi";
 import { formatDay, formatShortTime, formatTime, formatWindow } from "../../lib/time";
 import { db } from "../../offline/db";
 import { useLiveQuery, useOnline } from "../../offline/hooks";
@@ -83,11 +86,15 @@ export function OperatorScreen() {
           <h1 className="text-[32px] leading-tight tracking-[-0.03em]">
             {t("operator.title", { intake: intakeName(intake), day: formatDay(now), time: formatTime(now) })}
           </h1>
-          <Pill className="bg-coral text-ink">
-            <Icon name="dropOff" size={16} />
-            {t("operator.event_open", { id: OPERATOR.event_id })}
-          </Pill>
+          {!backendConfigured && (
+            <Pill className="bg-coral text-ink">
+              <Icon name="dropOff" size={16} />
+              {t("operator.event_open", { id: OPERATOR.event_id })}
+            </Pill>
+          )}
         </div>
+        {/* MOCK: everything below except the readings you save here is sample data, so say so. */}
+        <p className="mt-2 text-[14px] text-ink-soft">{t("operator.sample")}</p>
 
         <fieldset className="mt-4">
           <legend className="text-[14px] font-bold">{t("operator.intake_label")}</legend>
@@ -125,10 +132,10 @@ export function OperatorScreen() {
             <MetricTiles intake={intake} latest={latest} />
             <ChartsPanel intake={intake} />
             <ReadingForm key={intake} intake={intake} latest={latest} />
+            <CheckPanel />
           </div>
           <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
             <DetectorPanel />
-            <EarlyWarnings />
             <p className="text-[13px] text-ink-soft">
               {t("operator.footnote", { limit: TURBIDITY_LIMIT_NTU, shut: TURBIDITY_SHUTOFF_NTU, cap: CLARIFIER_CAPACITY_LPS })}
             </p>
@@ -463,29 +470,103 @@ function DetectorPanel() {
   );
 }
 
-const WARNING_CAUSE: Record<(typeof OPERATOR.early_warnings)[number]["cause"], CopyKeyName> = {
-  turbidity: "warnings.turbidity",
-  repair: "warnings.repair",
-  low_source: "warnings.low_source",
-};
+// MOCK until sign-in exists: the name sent as the actor when the operator confirms a disruption.
+const OPERATOR_ACTOR = OPERATOR.shift_name;
 
-function EarlyWarnings() {
+interface MonitorResult {
+  action: "created" | "updated" | "unchanged" | "none" | "confirmed";
+  prediction?: { signal_level: number };
+}
+
+/** Check now -> disruption-monitor; Confirm disruption -> disruption-monitor + rank-chain (the live thread, spec 03). */
+function CheckPanel() {
   const { t } = useCopy();
+  const live = useLiveSnapshot(15_000); // no-op when the backend isn't configured
+  const [busy, setBusy] = useState<"check" | "confirm" | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; lines: string[] } | null>(null);
+  const disruption = live.data?.disruption ?? null;
+
+  const reasonOf = (error: unknown) =>
+    error instanceof ApiError ? (error.status === 0 ? t("operator.reason_network") : error.message) : t("operator.reason_network");
+
+  async function check() {
+    setBusy("check");
+    setResult(null);
+    try {
+      await syncQueue(); // the monitor reads the readings the server has, so send ours first
+      const response = await callFunction<MonitorResult>("disruption-monitor", { body: { as_of: new Date().toISOString() } });
+      const waiting = (await pendingItems("reading")).length;
+      const outcome: Record<MonitorResult["action"], CopyKeyName> = {
+        created: "operator.check_created", updated: "operator.check_updated", unchanged: "operator.check_unchanged",
+        none: "operator.check_none", confirmed: "operator.check_unchanged",
+      };
+      const lines = [
+        ...(response.prediction ? [t("operator.check_signal", { level: response.prediction.signal_level })] : []),
+        t(outcome[response.action] ?? "operator.check_unchanged"),
+        ...(waiting > 0 ? [t("operator.check_unsent", { n: waiting })] : []),
+      ];
+      setResult({ ok: true, lines });
+      live.refresh();
+    } catch (error) {
+      setResult({ ok: false, lines: [t("operator.check_error", { reason: reasonOf(error) })] });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function confirm() {
+    if (!disruption) return;
+    setBusy("confirm");
+    setResult(null);
+    try {
+      await callFunction("disruption-monitor", { body: { action: "confirm", disruption_id: disruption.id, actor: OPERATOR_ACTOR } });
+    } catch (error) {
+      setResult({ ok: false, lines: [t("operator.confirm_error", { reason: reasonOf(error) })] });
+      setBusy(null);
+      return;
+    }
+    try {
+      const ranked = await callFunction<{ chains: unknown[] }>("rank-chain", { body: { disruption_id: disruption.id }, timeoutMs: 40_000 });
+      setResult({ ok: true, lines: [t("operator.confirm_done", { n: ranked.chains.length })] });
+    } catch (error) {
+      setResult({ ok: false, lines: [t("operator.confirm_rank_failed", { reason: reasonOf(error) })] });
+    } finally {
+      setBusy(null);
+      live.refresh();
+    }
+  }
+
+  if (!backendConfigured) {
+    return (
+      <section className="rounded-xl border-[1.5px] border-haze p-6">
+        <p className="text-[14px] text-ink-soft">{t("operator.live_off")}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-xl border-[1.5px] border-haze p-6">
-      <h2 className="font-display text-[22px]">{t("warnings.title")}</h2>
-      <p className="mt-1 text-[14px] text-ink-soft">{t("warnings.sub")}</p>
-      <ul className="mt-4">
-        {OPERATOR.early_warnings.map((w) => (
-          <li key={w.date} className="flex items-center justify-between border-b border-haze py-3 last:border-b-0">
-            <span>
-              {w.date} · {t(WARNING_CAUSE[w.cause])}
-            </span>
-            <strong className="tabular-nums">{w.notice}</strong>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 rounded-lg bg-mist p-3 text-[14px]">{t("warnings.note")}</p>
+      {disruption && (
+        <p className="mb-4 font-bold">
+          {t("operator.open_line", { cause: t(`lgu.cause.${disruption.cause}`), status: t(`live.status.${disruption.status}`) })}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-4">
+        <Button onClick={check} disabled={busy !== null} className="h-13">
+          {busy === "check" ? t("operator.checking") : t("operator.check_now")}
+        </Button>
+        {disruption?.status === "predicted" && (
+          <Button variant="soft" onClick={confirm} disabled={busy !== null} className="h-13">
+            {busy === "confirm" ? t("operator.confirming") : t("operator.confirm")}
+          </Button>
+        )}
+      </div>
+      <p className="mt-3 text-[14px] text-ink-soft">{t("operator.check_hint")}</p>
+      {result && (
+        <div role={result.ok ? "status" : "alert"} className={`mt-3 rounded-lg p-3 text-[14px] ${result.ok ? "bg-mist" : "bg-coral-wash font-bold text-coral-deep"}`}>
+          {result.lines.map((line) => <p key={line}>{line}</p>)}
+        </div>
+      )}
     </section>
   );
 }

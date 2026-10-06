@@ -6,6 +6,7 @@ import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import type { DisruptionStatus } from "../../contracts/spec07";
 import { BARANGAYS } from "../../data/mock";
+import { backendConfigured } from "../../lib/api";
 import { formatTime, formatTimeSeconds } from "../../lib/time";
 import { waterState, type WaterState } from "../../lib/waterState";
 import { useDashboard, type FeedItem, type LiveRow } from "../../realtime/useDashboard";

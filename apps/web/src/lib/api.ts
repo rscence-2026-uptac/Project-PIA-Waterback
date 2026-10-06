@@ -22,7 +22,7 @@ export class ApiError extends Error {
 
 export async function callFunction<T>(
   name: string,
-  opts: { method?: "GET" | "POST"; body?: unknown; query?: Record<string, string | number | undefined> } = {},
+  opts: { method?: "GET" | "POST"; body?: unknown; query?: Record<string, string | number | undefined>; timeoutMs?: number } = {},
 ): Promise<T> {
   if (!URL_BASE || !ANON_KEY) throw new ApiError(0, "not_configured", "Server is not configured");
   const method = opts.method ?? "POST";
@@ -31,7 +31,7 @@ export async function callFunction<T>(
   const qs = params.size > 0 ? `?${params}` : "";
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? TIMEOUT_MS);
   try {
     const res = await fetch(`${URL_BASE}/functions/v1/${name}${qs}`, {
       method,

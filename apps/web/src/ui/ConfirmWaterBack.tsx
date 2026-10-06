@@ -1,6 +1,7 @@
 // SPEC: 06 AC3–AC4 — a resident (or the barangay water captain on their behalf) confirms whether
 // water is back. Not in the wireframes; required by the spec (flagged).
-// The answer is saved to spec 05's offline queue and sent when Dev A's sync exists; the "sent" line
+// The answer is saved to spec 05's offline queue; enqueue() then calls requestSync() so it goes out at once when
+// online (and the 30 s timer / the `online` event retry it otherwise). The "sent" line
 // appears only after the queue item is marked synced, never on save. Only
 // restored = true may resolve the disruption; restored = false puts the barangay back on the
 // LGU allocation screen. That decision is made server-side, not here.

@@ -4,17 +4,20 @@
 // Human-in-the-loop: every row keeps its suggested rank, so each override is recorded as
 // overridden_from_suggested_rank on the AllocationDecision.
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BackendNotConnected, StepOutOfOrder, confirmAllocation } from "../../actions/lgu";
+import { BackendNotConnected, StepOutOfOrder, confirmAllocation, notifyResidents } from "../../actions/lgu";
 import { useCopy } from "../../copy/i18n";
-import type { AllocationDecision } from "../../contracts/spec06";
+import type { AllocationDecision, NotificationPayload } from "../../contracts/spec06";
 import { DEPOT, FACILITY_WEIGHT, MAX_TIME_FACTOR, NO_ACCESS_WEIGHT, VULNERABLE_WEIGHT, type NeedRow } from "../../contracts/spec10";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
 import { FACILITIES_BY_BARANGAY, VULNERABLE_BY_BARANGAY, clustersFile } from "../../data/needInputs";
 import { AFFECTED, OFFICER, OPEN_EVENT, ROUTABLE } from "../../data/mockLgu";
+import { sourcesFor, type Cause } from "../../data/mock";
 import { SEED_SOURCES } from "../../data/seedSources";
+import { ApiError, backendConfigured } from "../../lib/api";
+import { useLiveSnapshot } from "../../realtime/liveApi";
 import { fetchDrivingRoute } from "../../lib/drivingRoute";
 import { countSafeMappedSources, pickDropPoints, scoreClusters } from "../../lib/need";
-import { formatTime, formatWindow } from "../../lib/time";
+import { formatDay, formatTime, formatWindow } from "../../lib/time";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { LguLayout } from "./LguLayout";
@@ -31,7 +34,32 @@ const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)")
 const EVENT_SIGNAL = Math.max(0, ...AFFECTED.map((a) => a.signal_level));
 const EARLY_WARNING_MIN_SIGNAL = 2; // SPEC: 10 — Tier 1 is warned at prediction, signal >= 2
 
-type SaveState = "idle" | "saving" | "saved" | "not_connected" | "out_of_order" | "error";
+type SaveState = "idle" | "saving" | "saved" | "partial" | "not_connected" | "out_of_order" | "error";
+
+/** The disruption this screen acts on: the live open one when configured, else the MOCK sample event. */
+interface ActiveEvent {
+  disruption_id: string;
+  cause: Cause;
+  status: "predicted" | "confirmed" | "deployed" | "notified" | "resolved";
+  signal_level: number;
+  flagged_at: string;
+  window_start: string | null;
+  window_end: string | null;
+  likely_at: string | null;
+}
+
+/** "5:30 PM", or "Friday 5:30 PM" when it isn't today. */
+function whenLabel(iso: string): string {
+  const d = new Date(iso);
+  return d.toDateString() === new Date().toDateString() ? formatTime(d) : `${formatDay(d)} ${formatTime(d)}`;
+}
+
+/** Barangay ids in order of their best-ranked cluster. The backend takes one decision per barangay. */
+function barangayOrder(rows: { barangay_id: string }[]): string[] {
+  return [...new Set(rows.map((r) => r.barangay_id))];
+}
+
+const reasonOf = (error: unknown) => (error instanceof ApiError ? error.message : "Something went wrong.");
 
 /** A ticking clock, so hours-without-water stays current without a reload. */
 function useNow(everyMs = 60_000) {
@@ -47,14 +75,25 @@ export function AllocationScreen() {
   const { t } = useCopy();
   const now = useNow();
   const nowKey = Math.floor(now.getTime() / 60_000);
+  const liveFeed = useLiveSnapshot(5_000); // no-op when the backend isn't configured
+  const liveDisruption = backendConfigured ? liveFeed.data?.disruption ?? null : null;
+  const event: ActiveEvent | null = backendConfigured
+    ? liveDisruption && {
+        disruption_id: liveDisruption.id, cause: liveDisruption.cause, status: liveDisruption.status,
+        signal_level: liveDisruption.signal_level, flagged_at: liveDisruption.started_at,
+        window_start: liveDisruption.window_start ?? null, window_end: liveDisruption.window_end ?? null,
+        likely_at: liveDisruption.likely_at ?? null,
+      }
+    : { ...OPEN_EVENT, status: "confirmed", signal_level: EVENT_SIGNAL }; // MOCK: the sample event
+  const eventStart = event?.flagged_at ?? null;
   const scored = useMemo(
     () => scoreClusters({
       clusters: clustersFile.clusters, barangays: clustersFile.barangays, sources: SEED_SOURCES,
       vulnerableByBarangay: VULNERABLE_BY_BARANGAY, facilitiesByBarangay: FACILITIES_BY_BARANGAY,
-      startedAt: OPEN_EVENT.flagged_at, now,
+      startedAt: eventStart, now,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed once a minute, keyed on nowKey
-    [nowKey],
+    [nowKey, eventStart],
   );
   const byId = useMemo(() => new Map(scored.map((r) => [r.cluster_id, r])), [scored]);
   const clusterById = useMemo(() => new Map(clustersFile.clusters.map((c) => [c.cluster_id, c])), []);
@@ -64,21 +103,35 @@ export function AllocationScreen() {
   const order = useMemo(() => orderIds.map((id) => byId.get(id)).filter((r): r is NeedRow => !!r), [orderIds, byId]);
 
   const [save, setSave] = useState<SaveState>("idle");
+  const [outcome, setOutcome] = useState<{ saved: number; notified: number } | null>(null);
+  const [reason, setReason] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null); // hovered/focused cluster, linked between map and list
   const [showRoute, setShowRoute] = useState(false);
   const [moved, setMoved] = useState<{ id: string; n: number } | null>(null);
   const { listRef, scrollRef, more, onScroll, centreRow } = useScrollList(order.map((r) => r.cluster_id), moved);
 
-  const decisions: AllocationDecision[] = order.map((row, i) => ({
-    disruption_id: OPEN_EVENT.disruption_id,
-    cluster_id: row.cluster_id,
-    barangay_id: row.barangay_id,
-    priority_rank: i + 1,
-    officer_id: OFFICER.id,
-    overridden_from_suggested_rank: row.suggested_rank === i + 1 ? null : row.suggested_rank,
-  }));
+  // One decision per barangay: the backend rejects a repeated barangay_id until Dev A ships cluster support, so
+  // cluster_id is left out. A barangay's rank is its best-ranked cluster in the officer's order (dense 1..n); the
+  // suggested rank is worked out the same way from the suggested order. Only the 26 CWD-served barangays are
+  // allocated and notified: unserved ones have no tap to interrupt (they stay in the need list for planning).
+  const served = new Set(clustersFile.barangays.filter((b) => b.served).map((b) => b.barangay_id));
+  const servedOnly = (ids: string[]) => ids.filter((id) => served.has(id));
+  const suggestedBarangays = servedOnly(barangayOrder([...scored].sort((x, y) => x.suggested_rank - y.suggested_rank)));
+  const decisions: AllocationDecision[] = event
+    ? servedOnly(barangayOrder(order)).map((barangayId, i) => {
+        const suggested = suggestedBarangays.indexOf(barangayId) + 1;
+        return {
+          disruption_id: event.disruption_id,
+          barangay_id: barangayId,
+          priority_rank: i + 1,
+          officer_id: OFFICER.id,
+          overridden_from_suggested_rank: suggested === i + 1 ? null : suggested,
+        };
+      })
+    : [];
   const changes = decisions.filter((d) => d.overridden_from_suggested_rank !== null).length;
+  const waitingOnOperator = backendConfigured && event?.status === "predicted";
 
   function move(index: number, delta: -1 | 1) {
     const target = index + delta;
@@ -98,11 +151,36 @@ export function AllocationScreen() {
   }
 
   async function onConfirm() {
+    if (!event) return;
     setSave("saving");
+    setOutcome(null);
     try {
-      await confirmAllocation(decisions);
-      setSave("saved");
+      const saved = await confirmAllocation(decisions);
+      // Then tell residents (PWA). The real counts come back from the server; nothing is assumed.
+      const payloads: NotificationPayload[] = decisions.map((d) => ({
+        disruption_id: event.disruption_id,
+        barangay_id: d.barangay_id,
+        channel: "pwa_push",
+        status: "Water interrupted",
+        cause: event.cause,
+        expected_duration_hint: event.window_start && event.window_end
+          ? `Water expected back between ${formatWindow(event.window_start, event.window_end)}`
+          : undefined,
+        store_water_advice: true,
+        nearest_source_name: sourcesFor(d.barangay_id, event.cause)[0]?.name ?? "LGU water truck",
+        sent_at: new Date().toISOString(),
+      }));
+      try {
+        const sent = await notifyResidents(payloads);
+        setOutcome({ saved: saved.allocations, notified: sent.notified.length });
+        setSave("saved");
+      } catch (error) {
+        setOutcome({ saved: saved.allocations, notified: 0 });
+        setReason(reasonOf(error));
+        setSave("partial");
+      }
     } catch (error) {
+      setReason(reasonOf(error));
       setSave(
         error instanceof BackendNotConnected ? "not_connected"
           : error instanceof StepOutOfOrder ? "out_of_order"
@@ -152,20 +230,27 @@ export function AllocationScreen() {
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard tone="bg-coral-wash" icon="dropOff" label={t("lgu.what_happened")}
-          value={t(`lgu.headline.${OPEN_EVENT.cause}`)}
-          note={t("lgu.flagged_by", { who: OPEN_EVENT.flagged_by, time: formatTime(OPEN_EVENT.flagged_at) })} />
+          value={event ? t(`lgu.headline.${event.cause}`) : t("lgu.none_value")}
+          note={!event ? t("lgu.no_open")
+            : backendConfigured ? t("lgu.live_flagged", { time: whenLabel(event.flagged_at) })
+            : t("lgu.flagged_by", { who: OPEN_EVENT.flagged_by, time: formatTime(event.flagged_at) })} />
         <SummaryCard tone="bg-sky" icon="drop" label={t("lgu.who_affected")}
           value={t("lgu.who_value", { n: fmt(totals.people) })}
           note={t("lgu.affected_sub_clusters", { clusters: totals.clusters, barangays: totals.barangays })} />
         <SummaryCard tone="bg-sky" icon="clock" label={t("lgu.expected_back")}
-          value={t("lgu.window_today", { window: formatWindow(OPEN_EVENT.window_start, OPEN_EVENT.window_end) })}
-          note={t("lgu.most_likely", { time: formatTime(OPEN_EVENT.likely_at) })} />
+          value={!event?.window_start || !event.window_end ? t("lgu.none_value")
+            : new Date(event.window_start).toDateString() === new Date().toDateString() && new Date(event.window_end).toDateString() === new Date().toDateString()
+              ? t("lgu.window_today", { window: formatWindow(event.window_start, event.window_end) })
+              : t("lgu.window_span", { from: whenLabel(event.window_start), to: whenLabel(event.window_end) })}
+          note={event?.likely_at ? t("lgu.most_likely", { time: whenLabel(event.likely_at) }) : ""} />
         <div className="rounded-xl bg-ink p-6 text-foam">
-          {save === "saved" ? (
+          {save === "saved" || save === "partial" ? (
             <div className="panel-in">
               <p className="text-[14px] font-bold text-sky">{t("lgu.decision_step", { n: 2, total: 2 })}</p>
               <p className="mt-2 font-display text-[26px] leading-tight">{t("lgu.decision_done_title")}</p>
-              <p className="mt-2 text-[14px] text-sky">{t("lgu.decision_done_body")}</p>
+              <p className="mt-2 text-[14px] text-sky">
+                {save === "partial" ? t("lgu.decision_partial_body") : backendConfigured ? t("lgu.decision_done_body_live") : t("lgu.decision_done_body")}
+              </p>
             </div>
           ) : (
             <>
@@ -240,7 +325,7 @@ export function AllocationScreen() {
           </details>
           <p className="mt-4 text-[14px] text-ink-soft">{t("lgu.log_note")}</p>
 
-          {EVENT_SIGNAL >= EARLY_WARNING_MIN_SIGNAL && !empty && <EarlyWarningPanel rows={scored} signal={EVENT_SIGNAL} />}
+          {(event?.signal_level ?? 0) >= EARLY_WARNING_MIN_SIGNAL && !empty && <EarlyWarningPanel rows={scored} signal={event?.signal_level ?? 0} />}
         </section>
 
         <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
@@ -276,13 +361,25 @@ export function AllocationScreen() {
             <p className="mt-3 text-[14px] font-bold">
               {changes === 0 ? t("lgu.changes_none") : t("lgu.changes_some", { n: changes })}
             </p>
-            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving" || empty}>
+            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving" || empty || !event || waitingOnOperator}>
               {save === "saving" ? t("lgu.saving") : t("lgu.confirm_button", { name: OFFICER.name })}
             </Button>
+            {backendConfigured && !event && liveFeed.data && (
+              <p className="mt-4 text-[14px] text-sky">{t("lgu.no_open")}</p>
+            )}
+            {waitingOnOperator && <p className="mt-4 text-[14px] text-sky">{t("lgu.not_confirmed_yet")}</p>}
+            {(save === "saved" || save === "partial") && outcome && (
+              <p role="status" className="panel-in mt-4 flex gap-2.5 rounded-lg bg-ink-raised p-3 text-[14px]">
+                <Icon name={save === "saved" ? "check" : "alert"} size={18} className="mt-0.5" />
+                {save === "saved"
+                  ? t("lgu.result_ok", { saved: outcome.saved, notified: outcome.notified })
+                  : t("lgu.result_partial", { saved: outcome.saved, reason })}
+              </p>
+            )}
             {(save === "not_connected" || save === "out_of_order" || save === "error") && (
               <p role="alert" className="panel-in mt-4 flex gap-2.5 rounded-lg bg-ink-raised p-3 text-[14px]">
                 <Icon name="wifiOff" size={18} className="mt-0.5" />
-                {save === "not_connected" ? t("lgu.not_connected") : save === "out_of_order" ? t("lgu.out_of_order") : t("app.error_body")}
+                {save === "not_connected" ? t("lgu.not_connected") : save === "out_of_order" ? t("lgu.out_of_order") : t("lgu.result_error", { reason })}
               </p>
             )}
           </section>

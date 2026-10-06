@@ -94,7 +94,7 @@ export type TimelineKind =
 
 // MOCK: a finished event, dated yesterday throughout (todayAt(h, m, -1)) so the record never claims to be from the future.
 export const CLOSED_EVENT = {
-  code: "PIA-2026-031",
+  code: "PIA-2026-030",
   cause: "turbidity" as Cause,
   started_at: todayAt(5, 48, -1),
   restored_at: todayAt(17, 5, -1),
