@@ -1,4 +1,4 @@
-# disruption-predictor (spec 02, model v2)
+# disruption-predictor (spec 02, model v3, version `2026-10-06.3`)
 
 System-wide, read-only. Reads recent `readings`, up to 90 days of `rainfall_hourly`, and the next 48 h of `rain_forecast_hourly` (or a live Open-Meteo forecast), runs two logistic models and returns a `PredictorOutput` (zod schema in `packages/shared-types`). It does not write disruptions (that is spec 03/06).
 
@@ -47,18 +47,18 @@ const out = PredictorOutput.parse(await res.json());
 
 `level` from probability (lower bound inclusive): `p < 0.2` -> 0, `0.2-0.4` -> 1, `0.4-0.6` -> 2, `0.6-0.8` -> 3, `p >= 0.8` -> 4 (`toSignalLevel` in shared-types). Then `signal_level = max(turbidity_level, drought_level)`. One hard rule overrides the model: Caramayon I >= 500 NTU in the last 24 h (WSP p.43 source shut-off) forces `turbidity_level = 4`.
 
-### Model inputs (v2)
+### Model inputs (v3)
 
-- Turbidity: `turbidity_ntu` (latest Kulador), `turbidity_slope_per_hr` (least-squares over the last 6 hourly readings), `rain_24h_mm`, `rain_72h_mm`, `forecast_rain_48h_mm` (sum of forecast hourly rain over (as_of, as_of+48 h]).
+- Turbidity: `turbidity_ntu` (latest Kulador reading, at most 6 h old), `rain_24h_mm`, `rain_72h_mm`, `forecast_rain_48h_mm` (sum of forecast hourly rain over (as_of, as_of+48 h]).
 - Drought: `reservoir_pct` (latest Kulador), `rain_14d_mm`, `rain_30d_mm`, `days_since_rain_over_5mm` (Manila calendar days since the last day with >= 5 mm; 0 if today already has >= 5 mm; **not capped**; if no wet day exists in the 90 days read, the number of days of history available, a lower bound).
-- `clarifier_utilization` and the reservoir trend are no longer model inputs.
+- `clarifier_utilization`, the reservoir trend and (since v3) `turbidity_slope_per_hr` are no longer model inputs. The slope's v2 weight had the wrong sign and no effect on the metrics, so v3 drops it and the 6-reading window with it.
 
 ### Fallback rules
 
 | Situation | What happens | `fallback_used` |
 |---|---|---|
 | All turbidity inputs present | model | false |
-| Fewer than 6 Kulador readings in the last 6 h (sensor gap) | turbidity WSP rule | true |
+| No Kulador reading in the last 6 h (sensor gap) | turbidity WSP rule | true |
 | No rainfall rows in the window, or newest hourly rain row older than 3 h | turbidity WSP rule (and drought rule, see below) | true |
 | `forecast_source = "missing"` | turbidity WSP rule | true |
 | No reservoir reading in the last 24 h, or no rain rows for the 14 d / 30 d windows | drought reservoir rule | true |
@@ -85,7 +85,7 @@ The seeded data covers 2026-07-01..2026-07-31 (readings) and forecast rows throu
 ## Regenerate model + constants (after retraining or editing shared-types constants)
 
 ```
-node supabase/functions/_shared/gen_model.mjs        # reads ml/predictor_coefficients.json (v2 feature lists enforced)
+node supabase/functions/_shared/gen_model.mjs        # reads ml/predictor_coefficients.json (v3 feature lists enforced)
 ```
 Writes `_shared/model.generated.ts` and `_shared/constants.generated.ts` (never hand-edit). The edge function only imports from `supabase/functions`.
 

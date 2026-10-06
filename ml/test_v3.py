@@ -22,7 +22,7 @@ def small():
 def test_build_matches_v2_synthetic():
     d = L.build(8); t, dd = syn.build_dataset(8)
     X, y, _ = L.rows(d, np.arange(8))
-    assert np.array_equal(X, t[syn.TURB_FEATURES].values) and np.array_equal(y, t.y.values)
+    assert np.array_equal(X, t[syn.TURB_FEATURES_V2].values) and np.array_equal(y, t.y.values)
     assert np.array_equal(d["XD"].reshape(-1, 4), dd[syn.DROUGHT_FEATURES].values) and np.array_equal(d["YD"].reshape(-1), dd.y.values)
 
 

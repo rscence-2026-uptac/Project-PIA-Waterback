@@ -3,10 +3,9 @@ import { z } from "zod";
 // specs/02-disruption-predictor.md
 export const TurbidityFeatures = z.object({
   turbidity_ntu: z.number(),
-  turbidity_slope_per_hr: z.number(),       // over the last 6 readings
   rain_24h_mm: z.number(),                   // Open-Meteo
   rain_72h_mm: z.number(),
-  forecast_rain_48h_mm: z.number().nonnegative(), // sum of forecast hourly rain over (as_of, as_of+48h] (v2; replaces clarifier_utilization)
+  forecast_rain_48h_mm: z.number().nonnegative(), // sum of forecast hourly rain over (as_of, as_of+48h] (v2; replaces clarifier_utilization). v3 (2026-10-06.3) drops turbidity_slope_per_hr
 });
 export type TurbidityFeatures = z.infer<typeof TurbidityFeatures>;
 

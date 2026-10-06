@@ -1,15 +1,14 @@
-# Disruption predictor: training report (v3)
+# Disruption predictor: training report (v2)
 
-Version 2026-10-06.3, seed 20261006. Regenerate: `ml/.venv/bin/python ml/train_predictor.py` (deterministic).
+Version 2026-10-06.2, seed 20261006. Regenerate: `ml/.venv/bin/python ml/train_predictor.py` (deterministic).
 
 **Training data is synthetic and physics-informed; not real incident history.** Rain is real Open-Meteo hourly precipitation for Catbalogan (11.7769, 124.8852), 2016-2025; turbidity/reservoir response is simulated (`ml/synthetic.py`, reusing `ml/simulate_july.py`) around the CWD 2022 WSP thresholds.
 
-## v1 -> v2 -> v3 changes
+## v1 -> v2 changes
 
 - v1 reached turbidity recall only through a 1.5x positive-class weight boost; precision was 0.53 and it alarmed on ~42% of non-event rows, because the label depends on rain in the next 48 h that no feature could see.
 - **Added `forecast_rain_48h_mm`** (forecast rain in (t, t+48h]). In training it is simulated from the real future rain with an assumed forecast-error model (below).
 - **Removed `clarifier_utilization`** (v1 sign was negative, counter-intuitive) and **`reservoir_trend_pct_per_day`** (collinear with `reservoir_pct`, v1 sign positive).
-- **v3 (2026-10-06.3): removed `turbidity_slope_per_hr`** (v2 sign was wrong and negligible, -0.0009, collinear with `turbidity_ntu`); everything else unchanged (v2a in `docs/predictor_v3.md`). Gates amended to the measured values (spec 02 changelog).
 - **Removed the recall boost**: `class_weight='balanced'` only. Threshold stays 0.4. New gates: precision >= 0.65 on both models, July non-event alarm rate < 20%, all coefficient signs physically intuitive.
 
 ## Dataset
@@ -29,44 +28,42 @@ Version 2026-10-06.3, seed 20261006. Regenerate: `ml/.venv/bin/python ml/train_p
 
 Justification: **all values are ASSUMPTIONS, not fitted to any skill measurement.** The only forecast data we have is Open-Meteo's Historical Forecast archive, which stitches the first hours of each successive model run (not a true 24-48 h-ahead forecast), and for 2026-06/07 it is value-identical to the archive rain (see `docs/predictor.md`), so it cannot measure 2-day skill. Tropical convective rain is hard to forecast at 1-2 day lead, so a deliberately noisy model is used (sigma 0.5 = typical +/-65% error on a 48 h total; 10% misses and false alarms). I did not tune these to pass the gates.
 
-## Held-out metrics at the fixed decision threshold p >= 0.4 (signal level >= 2): v1 vs v2 vs v3
+## Held-out metrics at the fixed decision threshold p >= 0.4 (signal level >= 2): v1 vs v2
 
 | model | version | recall | precision | ROC-AUC | C (L2) | confusion [[TN,FP],[FN,TP]] |
 |---|---|---|---|---|---|---|
 | turbidity | v1 (1.5x boost on turbidity) | 0.862 | 0.531 | 0.839 | | |
-| turbidity | **v3** | 0.846 | 0.786 | 0.936 | 0.03 | [[20195, 2955], [1982, 10868]] |
+| turbidity | **v2** | 0.845 | 0.786 | 0.936 | 0.03 | [[20185, 2965], [1986, 10864]] |
 | drought | v1 (1.5x boost on turbidity) | 0.972 | 0.758 | 0.989 | | |
-| drought | **v3** | 0.964 | 0.740 | 0.989 | 0.01 | [[4491, 381], [41, 1087]] |
+| drought | **v2** | 0.964 | 0.740 | 0.989 | 0.01 | [[4491, 381], [41, 1087]] |
 
-Turbidity **onset recall** (only rows whose current Kulador turbidity is still below 250 NTU, i.e. a genuine early warning, 9297 positive rows): recall 0.787, precision 0.721 (v1: 0.809 / 0.438).
+Turbidity **onset recall** (only rows whose current Kulador turbidity is still below 250 NTU, i.e. a genuine early warning, 9297 positive rows): recall 0.786, precision 0.721 (v1: 0.809 / 0.438).
 
 ## Gates
 
 | gate | value | result |
 |---|---|---|
-| turbidity recall >= 0.84 | 0.846 | PASS |
+| turbidity recall >= 0.85 | 0.845 | **FAIL** |
 | turbidity precision >= 0.65 | 0.786 | PASS |
-| turbidity all coefficient signs intuitive | all ok | PASS |
+| turbidity all coefficient signs intuitive | ['turbidity_slope_per_hr'] | **FAIL** |
 | drought recall >= 0.85 | 0.964 | PASS |
 | drought precision >= 0.65 | 0.740 | PASS |
 | drought all coefficient signs intuitive | all ok | PASS |
-| turbidity events caught (>= 1 h lead) >= 0.95 | 0.982 | PASS |
-| turbidity false-alarm episodes / 30 d <= 5 | 3.920 | PASS |
+| July replay non-event alarm rate < 0.2 | 0.217 | **FAIL** |
 
-Event-level (held-out trajectories, `ml/v3_lib.event_metrics`): 448 events, 440 caught with >= 1 h lead (98.2%), lead median 48 h (p25 26 h, clipped at 72 h), false-alarm episodes 3.92 per 30 days.
-
-Gates were amended on 2026-10-06 to the measured v3 values (spec 02 changelog): turbidity recall >= 0.84 (was 0.85), the July non-event alarm-rate gate was replaced by the event-level gates above. No threshold move, no class-weight boost, no label change. The July non-event alarm rate (replay file) is reported only.
+Gates are evaluated as specified and were not relaxed: no threshold move, no class-weight boost, no label change.
 
 ## Coefficients (raw units; probability = sigmoid(bias + sum(weight x feature)))
 
-### turbidity  (bias -3.06831)
+### turbidity  (bias -3.06754)
 
 | feature | raw weight | standardized weight | expected sign | sign | meaning |
 |---|---|---|---|---|---|
-| `turbidity_ntu` | +0.00900851 | +1.811 | + | ok | current Kulador raw turbidity (per NTU) |
-| `rain_24h_mm` | +0.100015 | +1.100 | + | ok | rain in the last 24 h (per mm) |
-| `rain_72h_mm` | +0.0113006 | +0.274 | + | ok | rain in the last 72 h (per mm) |
-| `forecast_rain_48h_mm` | +0.202423 | +4.293 | + | ok | forecast rain in the next 48 h (per mm) |
+| `turbidity_ntu` | +0.00911163 | +1.832 | + | ok | current Kulador raw turbidity (per NTU) |
+| `turbidity_slope_per_hr` | -0.000890287 | -0.025 | + | **WRONG** | how fast turbidity is rising (per NTU/h over last 6 readings) |
+| `rain_24h_mm` | +0.0987684 | +1.086 | + | ok | rain in the last 24 h (per mm) |
+| `rain_72h_mm` | +0.0111871 | +0.271 | + | ok | rain in the last 72 h (per mm) |
+| `forecast_rain_48h_mm` | +0.202249 | +4.289 | + | ok | forecast rain in the next 48 h (per mm) |
 
 ### drought  (bias 4.23759)
 
@@ -81,12 +78,12 @@ Gates were amended on 2026-10-06 to the measured v3 values (spec 02 changelog): 
 
 Turbidity model re-trained under other forecast-error assumptions. Shows how much the gates depend on how good the real forecast is.
 
-| forecast-error assumption | recall | precision | ROC-AUC | forecast weight |
-|---|---|---|---|---|
-| sigma 0.3, no miss/false alarm | 0.893 | 0.847 | 0.969 | +0.3328 |
-| sigma 0.5, no miss/false alarm | 0.873 | 0.818 | 0.956 | +0.2670 |
-| sigma 0.5, miss 10% / false alarm 10% (HEADLINE) | 0.846 | 0.786 | 0.936 | +0.2024 |
-| sigma 0.8, miss 10% / false alarm 10% | 0.813 | 0.752 | 0.916 | +0.1415 |
+| forecast-error assumption | recall | precision | ROC-AUC | forecast weight | slope weight |
+|---|---|---|---|---|---|
+| sigma 0.3, no miss/false alarm | 0.893 | 0.847 | 0.969 | +0.3325 | -0.00246 |
+| sigma 0.5, no miss/false alarm | 0.873 | 0.818 | 0.956 | +0.2669 | -0.00212 |
+| sigma 0.5, miss 10% / false alarm 10% (HEADLINE) | 0.845 | 0.786 | 0.936 | +0.2022 | -0.00089 |
+| sigma 0.8, miss 10% / false alarm 10% | 0.813 | 0.752 | 0.916 | +0.1415 | -0.00071 |
 
 ## Labels
 

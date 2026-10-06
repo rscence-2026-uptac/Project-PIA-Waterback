@@ -21,7 +21,10 @@ from wsp_constants import (TURBIDITY_SHUTOFF_NTU, CLARIFIER_CAPACITY_LPS, FILTRA
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_10Y = ROOT / "ml" / "data" / "openmeteo_2016-2025.json"
-TURB_FEATURES = ["turbidity_ntu", "turbidity_slope_per_hr", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"]
+# v2 column layout of the simulated feature matrix (incl. the slope column; kept for the v3 study code and the dataset frame)
+TURB_FEATURES_V2 = ["turbidity_ntu", "turbidity_slope_per_hr", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"]
+# v3 (model 2026-10-06.3) = v2 minus turbidity_slope_per_hr: the features the trained/deployed model uses
+TURB_FEATURES = [f for f in TURB_FEATURES_V2 if f != "turbidity_slope_per_hr"]
 DROUGHT_FEATURES = ["reservoir_pct", "rain_14d_mm", "rain_30d_mm", "days_since_rain_over_5mm"]
 
 # --- ASSUMPTIONS (none are in the WSP) ---
@@ -93,7 +96,7 @@ def synth_forecast_48h(rain_h: np.ndarray, rng: np.random.Generator) -> np.ndarr
 
 
 def turbidity_features(kul_ntu, rain_h, forecast_48h) -> np.ndarray:
-    """Hourly feature matrix, columns = TURB_FEATURES. Observations use data up to and including hour t;
+    """Hourly feature matrix, columns = TURB_FEATURES_V2 (the model selects TURB_FEATURES by name). Observations use data up to and including hour t;
     forecast_48h[t] = forecast rain for (t, t+48h] (training: synth_forecast_48h; production: weather forecast)."""
     return np.column_stack([kul_ntu, _trailing_slope(np.asarray(kul_ntu, float), 6), _trailing_sum(rain_h, 24),
                             _trailing_sum(rain_h, 72), np.asarray(forecast_48h, float)])
@@ -204,7 +207,7 @@ def build_dataset(n_traj: int = 500, seed: int = 20261006) -> tuple[pd.DataFrame
         X = turbidity_features(tr["kul"], rain, synth_forecast_48h(rain, rng))
         lo, hi = WARMUP_DAYS * 24, (WARMUP_DAYS + USABLE_DAYS) * 24
         sel = np.arange(lo, hi, SAMPLE_STRIDE_H)
-        df = pd.DataFrame(X[sel], columns=TURB_FEATURES); df["y"] = y[sel].astype(int); df["traj"] = j
+        df = pd.DataFrame(X[sel], columns=TURB_FEATURES_V2); df["y"] = y[sel].astype(int); df["traj"] = j
         df["already_degraded"] = ev[sel].astype(int); trows.append(df)
         # ---- drought rows (daily) ----
         nd = win // 24

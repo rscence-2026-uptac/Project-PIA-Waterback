@@ -48,17 +48,24 @@ describe("predict()", () => {
     expect(o.computed_at).toBe("2026-07-10T04:00:00.000Z");
     expect(o.signal_level).toBe(Math.max(o.turbidity_level, o.drought_level));
   });
-  it("sensor gap -> turbidity fallback; p is band midpoint", () => {
-    const gap = full.filter((r) => r.recorded_at !== new Date(ASOF - 2 * HOUR).toISOString());
-    const o = P({ readings: gap, rainHourly: rain, asOf });
+  const stale = (ntu = 4) => kuladorSeries(ASOF - 7 * HOUR, 10 * 24, (h) => (h === 0 ? { turbidity_ntu: ntu } : {}));
+  it("no recent Kulador reading (> 6 h) -> turbidity fallback; p is band midpoint", () => {
+    const o = P({ readings: stale(), rainHourly: rain, asOf });
     expect(o.fallback_used).toBe(true);
     expect(o.turbidity_level).toBe(0);
     expect(o.p_turbidity).toBe(0.1);
     expect(PredictorOutput.safeParse(o).success).toBe(true);
   });
-  it.each([[600, 4], [300, 3], [20, 1]])("gap + %f NTU -> level %i with midpoint p", (ntu, lvl) => {
-    const gap = kuladorSeries(ASOF, 10 * 24, (h) => (h === 0 ? { turbidity_ntu: ntu } : {})).filter((r) => r.recorded_at !== new Date(ASOF - 2 * HOUR).toISOString());
-    const o = P({ readings: gap, rainHourly: rain, asOf });
+  it("a gap among the last 6 readings no longer triggers the fallback (v3 has no slope)", () => {
+    const gap = full.filter((r) => r.recorded_at !== new Date(ASOF - 2 * HOUR).toISOString());
+    expect(P({ readings: gap, rainHourly: rain, asOf }).fallback_used).toBe(false);
+  });
+  it("a single fresh reading (e.g. the first hour of data) runs the model when rain and forecast are present", () => {
+    const o = P({ readings: kuladorSeries(ASOF, 1, () => ({ turbidity_ntu: 30 })), rainHourly: rain, asOf });
+    expect(o.fallback_used).toBe(false);
+  });
+  it.each([[600, 4], [300, 3], [20, 1]])("stale reading + %f NTU -> level %i with midpoint p", (ntu, lvl) => {
+    const o = P({ readings: stale(ntu), rainHourly: rain, asOf: new Date(ASOF - 7 * HOUR + 7 * HOUR) });
     expect(o.turbidity_level).toBe(lvl);
     expect(o.p_turbidity).toBe(bands[lvl][1]);
     expect(o.signal_level).toBeGreaterThanOrEqual(lvl);
