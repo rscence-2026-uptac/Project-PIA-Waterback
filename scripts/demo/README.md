@@ -33,6 +33,23 @@ Scenario steps: predictor, monitor create, monitor confirm, rank-chain (batch), 
 
 Notes on output: latency in `listen`/`verify-realtime` is local receive time minus Realtime `commit_timestamp`, so it includes local clock skew. Client-supplied `deployed_at` / `sent_at` / `confirmed_at` are generated at call time (+08:00) and never earlier than the server's last response time, so they are not before the allocation (server caps them at its own now).
 
+### Simulated handset (zero-cost SMS)
+
+| Command | What it does |
+|---|---|
+| `sms [--seconds S] [--history N]` | Anon key, Realtime `INSERT` on `sms_outbox`: prints each message phone-style (barangay, masked number, language, body; `(simulated)` = dry-run). `--history N` first prints the last N rows. |
+| `reply <barangay_id\|+63900000000X> <KEYWORD>` | Calls `sms-webhook?demo=1` as that seeded demo resident (`lagundi`, `payao`, `darahuway-dako`, `darahuway-guti`), e.g. `reply lagundi THANKS` or `reply payao STATUS`. Prints the auto-reply. Only the fake demo block is accepted. |
+
+`run` prints, in the notify step, how many SMS went to the outbox. `reset --yes` also clears `sms_outbox` (never `residents`). Needs migration `20261006000009` and `supabase/seed/demo_residents.sql` applied.
+
+**SMS stage flow**
+```
+terminal 1:  node scripts/demo/demo.mjs sms
+terminal 2:  node scripts/demo/demo.mjs run --step      # at "Notify residents" the phones light up in terminal 1
+terminal 2:  node scripts/demo/demo.mjs reply lagundi THANKS   # resident confirms; run the other top barangays too
+```
+Use `reply <barangay> THANKS` instead of the scenario's own confirmation step if you want the audience to see the resident side (stop `run --step` before the "Resident confirmation" step, reply from each notified barangay, then run `status`).
+
 ## Recommended stage flow
 
 ```
@@ -52,6 +69,6 @@ Open Dev B's `/lgu/live` in the browser (or `listen` in a second terminal) befor
 
 ## Safety
 
-- `reset` only touches the five runtime scopes above. It never touches `barangays`, `sources`, `intakes`, `wsp_constants`, `rainfall_*`, `rain_forecast_hourly`, `residents`, or simulated readings. It requires `--yes` and the service-role key.
+- `reset` only touches the runtime scopes above (plus `sms_outbox`). It never touches `barangays`, `sources`, `intakes`, `wsp_constants`, `rainfall_*`, `rain_forecast_hourly`, `residents`, or simulated readings. It requires `--yes` and the service-role key.
 - SMS stays dry-run: `notify-residents` only sends when the function secret `SMS_LIVE` is exactly `true`. `run` aborts if the response says the mode is not `dry_run`. In dry-run, SMS recipients come from the `residents` table; with no seeded residents `planned` is 0.
 - Do not run against a project with real data in the runtime tables: `reset` deletes all of it.

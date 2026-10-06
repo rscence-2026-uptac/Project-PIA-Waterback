@@ -1,6 +1,6 @@
 // In-memory Store for the spec 06 function tests (mirrors the real constraints: unique client_local_id, status guards).
 import type {
-  BarangayRow, DisruptionRow, EventRow, NewAllocation, NewEvent, NewReading, ResidentRow, SourceRow, Store,
+  BarangayRow, DisruptionRow, EventRow, NewAllocation, NewEvent, NewReading, NewSmsOutbox, ResidentRow, SourceRow, Store,
 } from "../../functions/_shared/spec06_store.ts";
 
 export const D1 = "3f6b2f0e-6d57-4c53-9a0c-1b2c3d4e5f60";
@@ -15,6 +15,7 @@ export class FakeStore implements Store {
   events: (NewEvent & { client_local_id: string | null })[] = [];
   readings: NewReading[] = [];
   residents: ResidentRow[] = [];
+  outbox: NewSmsOutbox[] = [];
   calls = 0; // store round trips, to keep an eye on the latency budget
   failReadings = false;
 
@@ -59,6 +60,7 @@ export class FakeStore implements Store {
   }
   async getSmsResidents(ids: string[]) { return this.residents.filter((r) => ids.includes(r.barangay_id) && r.channel === "sms" && r.phone); }
   async findResidentByPhone(p: string) { return this.residents.find((r) => r.phone === p) ?? null; }
+  async insertSmsOutbox(rows: NewSmsOutbox[]) { this.outbox.push(...rows); }
   async insertReading(row: NewReading) {
     if (this.failReadings) throw new Error("db down");
     if (this.readings.some((r) => r.client_local_id === row.client_local_id)) return "duplicate" as const;

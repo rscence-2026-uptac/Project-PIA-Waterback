@@ -44,7 +44,8 @@ end $$;
 reset role;
 set local role service_role;
 do $$ begin
-  assert (select count(*) from residents) = 1, 'service_role cannot read residents';
+  assert (select count(*) from residents where barangay_id = 'rls1') = 1, 'service_role cannot read residents';
+  assert (select count(*) from residents) = 6, 'service_role sees 5 seeded demo residents + 1';
 end $$;
 reset role;
 do $$ begin

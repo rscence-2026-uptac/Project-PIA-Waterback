@@ -19,6 +19,8 @@ export interface SourceRow {
   provenance: Provenance;
   source_ref: string | null;
   is_simulated: boolean;
+  /** Fed from the blended CWD network: dry in a system-wide failure (turbidity, drought). */
+  network_dependent: boolean;
 }
 export interface RankedSourceOut {
   source_id: string;
@@ -34,43 +36,50 @@ export interface RankedSourceOut {
   is_simulated: boolean;
   source_ref: string | null;
 }
-export type ExclusionReason = "inactive" | "system_wide_cause_neighbor_blended_network";
+/** `system_wide_cause_neighbor_blended_network` is the pre-000010 name (neighbors only), no longer emitted. */
+export type ExclusionReason = "inactive" | "network_dependent_system_wide";
 export interface ExcludedSource { source_id: string; name: string; type: SourceType; reason: ExclusionReason }
 export interface RankedChainOut {
   barangay_id: string;
   disruption_id: string;
   ranked_sources: RankedSourceOut[];
-  /** Candidates removed before ranking (spec 04 AC4: inactive; Dev A rule: neighbors on a system-wide cause). */
+  /** Candidates removed before ranking (spec 04 AC4: inactive; Dev A rule: network-dependent sources on a system-wide cause). */
   excluded: ExcludedSource[];
   warning?: "no_eligible_sources";
   computed_at: string;
 }
 
-/** Causes where the whole blended CWD network is down: a "neighboring barangay" is dry too (WSP pp.12, 15). */
+/** Causes where the whole blended CWD network is down: every network-dependent source (neighbors, Cogao booster line) is dry too (WSP pp.12, 15). */
 export const SYSTEM_WIDE_CAUSES = ["turbidity", "drought"] as const;
 export const isSystemWide = (cause: string | null | undefined): boolean => (SYSTEM_WIDE_CAUSES as readonly string[]).includes(cause ?? "");
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Neighbors are always network-dependent, even on a DB seeded before migration 000010. */
+export const isNetworkDependent = (s: Pick<SourceRow, "type" | "network_dependent">): boolean => s.network_dependent || s.type === "neighboring_barangay";
+
 /**
- * Filters then orders one barangay's candidates: safety desc, travel asc, cost asc, source id asc (deterministic).
- * `exceeds_jmp_benchmark` flags (never excludes) travel_minutes > JMP_ROUNDTRIP_MIN.
+ * Filters then orders one barangay's candidates: reachable first (travel_minutes <= JMP_ROUNDTRIP_MIN), then safety desc,
+ * travel asc, cost asc, source id asc (deterministic). Unreachable sources stay (after every reachable one), flagged by
+ * `exceeds_jmp_benchmark`, never excluded for distance. System-wide causes drop every network-dependent source.
  */
 export function rankSources(sources: SourceRow[], cause: string | null): { ranked: RankedSourceOut[]; excluded: ExcludedSource[] } {
   const excluded: ExcludedSource[] = [];
   const eligible: SourceRow[] = [];
+  const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
   for (const s of sources) {
     const ex = (reason: ExclusionReason) => excluded.push({ source_id: s.id, name: s.name, type: s.type, reason });
     if (!s.active) ex("inactive");
-    else if (s.type === "neighboring_barangay" && isSystemWide(cause)) ex("system_wide_cause_neighbor_blended_network");
+    else if (isNetworkDependent(s) && isSystemWide(cause)) ex("network_dependent_system_wide");
     else eligible.push(s);
   }
   eligible.sort((a, b) =>
-    (b.safety_score - a.safety_score) || (a.travel_minutes - b.travel_minutes) || (a.cost_php_per_unit - b.cost_php_per_unit) || cmpStr(a.id, b.id));
+    (Number(a.travel_minutes > jmp) - Number(b.travel_minutes > jmp)) || (b.safety_score - a.safety_score) || (a.travel_minutes - b.travel_minutes)
+    || (a.cost_php_per_unit - b.cost_php_per_unit) || cmpStr(a.id, b.id));
   excluded.sort((a, b) => cmpStr(a.source_id, b.source_id));
   const ranked = eligible.map((s, i): RankedSourceOut => ({
     source_id: s.id, name: s.name, type: s.type, safety_score: s.safety_score, travel_minutes: s.travel_minutes,
-    exceeds_jmp_benchmark: s.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN, cost_php_per_unit: s.cost_php_per_unit, rank: i + 1,
+    exceeds_jmp_benchmark: s.travel_minutes > jmp, cost_php_per_unit: s.cost_php_per_unit, rank: i + 1,
     provenance: s.provenance, is_simulated: s.is_simulated, source_ref: s.source_ref,
   }));
   return { ranked, excluded };
