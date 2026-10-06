@@ -24,11 +24,11 @@ export function ConfirmWaterBack({ disruptionId, barangayId, confirmedBy, title 
   const latest = useLiveQuery(
     async () => {
       const items = await db.queue.where("kind").equals("resident_confirmation").sortBy("queued_at");
-      const mine = items.filter((item) => item.payload.disruption_id === disruptionId && item.payload.confirmed_by === confirmedBy);
+      const mine = items.filter((item) => item.payload.disruption_id === disruptionId && item.payload.barangay_id === barangayId && item.payload.confirmed_by === confirmedBy);
       const last = mine.at(-1);
       return last ? { restored: last.payload.restored as boolean, sent: last.synced } : null;
     },
-    [disruptionId, confirmedBy],
+    [disruptionId, barangayId, confirmedBy],
     null as { restored: boolean; sent: boolean } | null,
   );
   const saved = latest?.restored ?? null;

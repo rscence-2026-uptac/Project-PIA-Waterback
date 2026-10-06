@@ -55,6 +55,16 @@ export function formatLongDate(date: Date | string): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date(date));
 }
 
+/**
+ * Residents' date line: "Tuesday 6 October" / "Martes, Oktubre 6". Named day and month, never
+ * numbers (elderly-friendly-ui rule 6). Waray has no Intl locale; its day and month names are the
+ * same Spanish-derived words Filipino uses, so it borrows the Filipino format.
+ */
+export function formatResidentDate(date: Date, language: "waray" | "filipino" | "english"): string {
+  const locale = language === "english" ? "en-GB" : "fil-PH";
+  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(date);
+}
+
 /** Today's date at hh:mm local time, as an ISO string. */
 export function todayAt(hours: number, minutes = 0, dayOffset = 0): string {
   const d = new Date();

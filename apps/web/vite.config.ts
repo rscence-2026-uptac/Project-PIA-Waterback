@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -8,6 +9,8 @@ const allowedHosts = ['itunes-anything-crouton.ngrok-free.dev']
 
 // https://vite.dev/config/
 export default defineConfig({
+  // The one .env lives at the repo root; only VITE_* variables reach the browser.
+  envDir: fileURLToPath(new URL('../..', import.meta.url)),
   server: { allowedHosts },
   preview: { allowedHosts },
   plugins: [

@@ -54,7 +54,7 @@ export function LiveDashboardScreen() {
               </section>
               <EventFeed feed={live.feed} />
             </div>
-            <p className="mt-6 text-[14px] text-ink-soft">{t("live.sample")}</p>
+            {!backendConfigured && <p className="mt-6 text-[14px] text-ink-soft">{t("live.sample")}</p>}
           </>
         )}
       </ScreenStateView>
@@ -222,7 +222,7 @@ function EventFeed({ feed }: { feed: FeedItem[] }) {
           {feed.map((item) => (
             <li key={`${item.barangay_id}-${item.occurred_at}-${item.event_type}`} className="panel-in grid grid-cols-[96px_1fr] gap-3 border-b border-haze py-2.5 last:border-b-0">
               <span className="font-bold tabular-nums">{formatTimeSeconds(item.occurred_at)}</span>
-              <span>{t("live.event_line", { event: t(EVENT_KEY[item.event_type]), barangay: nameOf(item.barangay_id) })}</span>
+              <span>{t("live.event_line", { event: t(EVENT_KEY[item.event_type]), barangay: item.barangay_id === null ? t("live.all_barangays") : nameOf(item.barangay_id) })}</span>
             </li>
           ))}
         </ol>

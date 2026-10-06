@@ -116,6 +116,9 @@ function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
   const start = new Date(detail.window_start!);
   const end = new Date(detail.window_end!);
   const late = now >= end;
+  // "Tomorrow" only when the window hasn't started and begins on the next calendar day.
+  const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const isTomorrow = start > now && start.toDateString() === nextDay.toDateString();
   const minutesDry = detail.started_at ? Math.max(0, minutesBetween(detail.started_at, now)) : null;
   const hoursDry = minutesDry === null ? 0 : Math.round(minutesDry / 60);
 
@@ -130,7 +133,7 @@ function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
         </p>
       )}
       <p className="mt-4 text-[16px] font-bold">
-        {start.toDateString() === now.toDateString() ? t("status.back_between") : t("status.back_between_tomorrow")}
+        {!isTomorrow ? t("status.back_between") : t("status.back_between_tomorrow")}
       </p>
       <p className="numeral mt-1 text-[44px] text-ink">{formatWindow(start, end)}</p>
       {late ? (
@@ -193,10 +196,16 @@ function OutageTimeline({ stopped, now, start, end }: { stopped: Date; now: Date
   );
 }
 
-function useFilledContainers(barangayId: string) {
-  const key = `storage.${barangayId}`;
+function useFilledContainers(barangayId: string, disruptionId: string | null | undefined) {
+  const key = `storage.${barangayId}.${disruptionId ?? "none"}`;
   const raw = useSyncExternalStore(subscribeSetting, () => readSetting(key), () => null);
-  const filled: boolean[] = raw ? JSON.parse(raw) : [];
+  let filled: boolean[] = [];
+  try {
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) filled = parsed;
+  } catch {
+    filled = [];
+  }
   const toggle = (index: number) => {
     const next = [...filled];
     next[index] = !next[index];
@@ -208,12 +217,12 @@ function useFilledContainers(barangayId: string) {
 function StoragePlanSection({ snapshot }: { snapshot: BarangaySnapshot }) {
   const { t } = useCopy();
   const { storage, status } = snapshot;
-  const { filled, toggle } = useFilledContainers(status.barangay_id);
+  const { filled, toggle } = useFilledContainers(status.barangay_id, snapshot.detail.disruption_id);
   const target = storage.people * storage.per_person_l;
   const filledCount = Array.from({ length: storage.containers }, (_, i) => filled[i]).filter(Boolean).length;
   const litres = filledCount * storage.container_l;
-  const totalSteps = storage.containers + 1; // alerts on + each container
-  const doneSteps = 1 + filledCount;
+  const totalSteps = storage.containers; // one step per container
+  const doneSteps = filledCount;
 
   return (
     <section id="storage" className="mt-8 scroll-mt-4" aria-labelledby="storage-title">
@@ -230,17 +239,7 @@ function StoragePlanSection({ snapshot }: { snapshot: BarangaySnapshot }) {
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-lg bg-mist p-4">
-        <span className="flex size-8 items-center justify-center rounded-full bg-water text-foam">
-          <Icon name="check" size={18} strokeWidth={3} />
-        </span>
-        <span>
-          <strong className="block">{t("storage.alerts_title")}</strong>
-          <span className="text-[15px] text-ink-soft">{t("storage.alerts_body")}</span>
-        </span>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-3 gap-3">
         {Array.from({ length: storage.containers }, (_, i) => (
           <ContainerTile
             key={i}

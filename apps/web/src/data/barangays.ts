@@ -98,7 +98,7 @@ export const CATBALOGAN_BARANGAYS: CatbaloganBarangay[] = [
   b("San Pablo", { served: true }),
   b("Mercedes", { served: true }),
   b("Maulong", { served: true }),
-  b("Guindaponan", { id: "guindapunan", aliases: ["Guindapunan"], served: true }),
+  b("Guindapunan", { id: "guindapunan", aliases: ["Guindaponan"], served: true }), // owner choice 2026-10-06: WSP spelling shown; PSGC "Guindaponan" kept searchable
   b("Guinsorongan", { served: true }),
   b("Bunuanan", { id: "bunu-anan", aliases: ["Bunu-anan"], served: true }),
   b("Darahuway Gote", { id: "darahuway-guti", aliases: ["Darahuway Guti"], served: true }),

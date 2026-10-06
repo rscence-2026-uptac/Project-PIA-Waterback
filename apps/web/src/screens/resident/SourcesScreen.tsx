@@ -1,5 +1,5 @@
 // Backup water plan, ranked safety → time → cost (wireframe p.5; ranking comes from spec 04).
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useCopy } from "../../copy/i18n";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
@@ -22,7 +22,9 @@ export function SourcesScreen() {
   const status = useBarangayStatus(barangay?.barangay_id ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const centroid = CATBALOGAN_BARANGAYS.find((b) => b.barangay_id === barangay?.barangay_id);
-  const home = centroid?.lat != null && centroid.lng != null ? { lat: centroid.lat, lng: centroid.lng } : null;
+  const homeLat = centroid?.lat;
+  const homeLng = centroid?.lng;
+  const home = useMemo(() => (homeLat != null && homeLng != null ? { lat: homeLat, lng: homeLng } : null), [homeLat, homeLng]);
 
   function showInList(sourceId: string) {
     setSelected(sourceId);

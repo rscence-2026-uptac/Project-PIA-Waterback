@@ -1,6 +1,7 @@
 // SPEC: 05 — every write goes into the local queue first, then syncs when online.
 import { OfflineQueueItem } from "../contracts/spec05";
 import { db } from "./db";
+import { requestSync } from "./sync";
 
 export async function enqueue(
   kind: OfflineQueueItem["kind"],
@@ -15,6 +16,7 @@ export async function enqueue(
     synced: false,
   });
   await db.queue.add(item);
+  requestSync(); // no-op offline or when the backend isn't configured; the 30 s timer retries
   return item;
 }
 

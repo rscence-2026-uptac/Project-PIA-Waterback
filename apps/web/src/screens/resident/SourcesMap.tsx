@@ -4,12 +4,13 @@
 // Walking directions are worked out in the app (lib/walkingRoute.ts) and drawn as a route on the map.
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip } from "react-leaflet";
 import { useCopy } from "../../copy/i18n";
 import type { BackupSource } from "../../data/mock";
 import { Button } from "../../ui/Button";
 import { Icon, PATHS } from "../../ui/Icon";
+import { metresBetween } from "../../lib/geo";
 import { fetchWalkingRoute, type WalkingRoute } from "../../lib/walkingRoute";
 
 type Point = { lat: number; lng: number };
@@ -22,14 +23,6 @@ type RouteState =
 
 
 const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Straight-line distance in metres (haversine). */
-function metresBetween(a: Point, b: Point) {
-  const rad = (d: number) => (d * Math.PI) / 180;
-  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
-    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
-  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
-}
 
 function letterPin(source: BackupSource, first: boolean, selected: boolean) {
   const size = selected ? 48 : 40;
@@ -60,6 +53,7 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   const [located, setLocated] = useState<Located>("barangay");
   const [tilesFailed, setTilesFailed] = useState(() => !navigator.onLine);
   const [routeState, setRouteState] = useState<RouteState>({ status: "idle" });
+  const routeRequest = useRef(0);
   const reduce = useMemo(reduceMotion, []);
 
   const mapped = sources.filter((s): s is BackupSource & Point => s.lat !== null && s.lng !== null);
@@ -73,7 +67,11 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   const path = route?.status === "ready" ? route.route.path : null;
 
   // A new starting point (GPS) makes an old route wrong.
-  useEffect(() => setRouteState({ status: "idle" }), [you]);
+  // Bumping the counter also drops any request still in flight for the old origin.
+  useEffect(() => {
+    routeRequest.current++;
+    setRouteState({ status: "idle" });
+  }, [you, home]);
 
   // Keep every pin and the resident in view (or the whole route while one is shown); there's no
   // dragging on phones, because it would trap page scroll.
@@ -88,11 +86,14 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   async function showRoute() {
     if (!origin || !focus) return;
     const id = focus.source.source_id;
+    const request = ++routeRequest.current;
     setRouteState({ status: "loading", id });
     try {
       const walking = await fetchWalkingRoute(origin, focus.source);
+      if (request !== routeRequest.current) return; // a newer request, or the origin changed
       setRouteState({ status: "ready", id, route: walking });
     } catch {
+      if (request !== routeRequest.current) return;
       setRouteState({ status: "failed", id });
     }
   }

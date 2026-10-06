@@ -14,3 +14,6 @@ __pycache__/
 supabase/.temp/
 supabase/.branches/
 .DS_Store
+
+# WorldPop raw GeoTIFFs (one-time download, not committed)
+data/population/raw/

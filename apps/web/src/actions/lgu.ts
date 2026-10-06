@@ -13,6 +13,7 @@
 // never has to rely on the 409 as its normal path.
 import { z } from "zod";
 import { AllocationDecision, DeployResponse, NotificationPayload } from "../contracts/spec06";
+import { ApiError, backendConfigured, callFunction } from "../lib/api";
 
 export class BackendNotConnected extends Error {
   readonly fn: string;
@@ -46,32 +47,32 @@ function markDone(disruptionId: string, step: Step) {
 
 /** Whether the UI may offer a step yet (use this to disable the Deploy / Notify buttons). */
 export function canRun(disruptionId: string, fn: Exclude<EdgeFn, "confirm-allocation">): boolean {
-  return fn === "deploy-response" ? isDone(disruptionId, "allocated") : isDone(disruptionId, "deployed");
+  if (fn === "deploy-response") return isDone(disruptionId, "allocated");
+  // The real backend sets the disruption to `deployed` as soon as confirm-allocation succeeds, and that is all
+  // notify-residents needs (supabase/functions/README.md). deploy-response (a specific source) is not required first.
+  return isDone(disruptionId, "deployed") || isDone(disruptionId, "allocated");
 }
 
 /**
- * Single seam to Supabase. Until the functions exist it throws BackendNotConnected.
- * When they do, replace the body with the commented fetch below.
+ * Single seam to Supabase. Not configured -> BackendNotConnected. A 409 (a step skipped) -> StepOutOfOrder.
+ * Returns the server's JSON answer so callers can show real counts.
  */
-async function callEdge(fn: EdgeFn, _body: unknown): Promise<void> {
-  void _body;
-  // TODO(Dev A): enable once supabase/functions/<fn> is deployed.
-  // const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fn}`, {
-  //   method: "POST",
-  //   headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-  //   body: JSON.stringify(_body),
-  // });
-  // if (res.status === 409) throw new StepOutOfOrder(fn);
-  // if (!res.ok) throw new Error(`${fn} failed with ${res.status}`);
-  // return;
-  throw new BackendNotConnected(fn);
+async function callEdge<T = unknown>(fn: EdgeFn, body: unknown): Promise<T> {
+  if (!backendConfigured) throw new BackendNotConnected(fn);
+  try {
+    return await callFunction<T>(fn, { body });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) throw new StepOutOfOrder(fn);
+    throw error;
+  }
 }
 
 /** Saves the officer's order and writes the `deployed` event. */
-export async function confirmAllocation(decisions: AllocationDecision[]): Promise<void> {
+export async function confirmAllocation(decisions: AllocationDecision[]): Promise<{ allocations: number; events_written: number }> {
   z.array(AllocationDecision).min(1).parse(decisions);
-  await callEdge("confirm-allocation", decisions);
+  const result = await callEdge<{ allocations: number; events_written: number }>("confirm-allocation", decisions);
   markDone(decisions[0].disruption_id, "allocated");
+  return result;
 }
 
 /** Records which ranked source was actually sent to a barangay. */
@@ -83,10 +84,15 @@ export async function deployResponse(response: DeployResponse): Promise<void> {
 }
 
 /** Sends the PWA push + Semaphore SMS and writes the `notified` event. */
-export async function notifyResidents(payloads: NotificationPayload[]): Promise<void> {
+export interface NotifyResult {
+  notified: { barangay_id: string; channels: string[]; sms_recipients: number }[];
+  sms?: { mode?: string; planned?: number; sent?: number; failed?: number };
+}
+export async function notifyResidents(payloads: NotificationPayload[]): Promise<NotifyResult> {
   z.array(NotificationPayload).min(1).parse(payloads);
   const disruptionId = payloads[0].disruption_id;
   if (!canRun(disruptionId, "notify-residents")) throw new StepOutOfOrder("notify-residents");
-  await callEdge("notify-residents", payloads);
+  const result = await callEdge<NotifyResult>("notify-residents", payloads);
   markDone(disruptionId, "notified");
+  return result;
 }

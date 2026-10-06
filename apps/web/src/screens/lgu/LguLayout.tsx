@@ -21,6 +21,7 @@ export function LguLayout({ children }: { children: ReactNode }) {
             </Pill>
             <StaffTab to="/lgu">{t("lgu.tab_priorities")}</StaffTab>
             <StaffTab to="/lgu/live">{t("lgu.tab_live")}</StaffTab>
+            <StaffTab to="/lgu/plan">{t("lgu.tab_plan")}</StaffTab>
             <StaffTab to="/lgu/event">{t("lgu.tab_records")}</StaffTab>
           </>
         }
