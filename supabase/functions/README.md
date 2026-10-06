@@ -149,3 +149,43 @@ Local: `supabase functions serve --env-file .env.local` (leave `SMS_LIVE` out).
 7. **`overridden_from_suggested_rank`** is stored in the `deployed` event payload because `allocations` has no column for it. Suggest a nullable `allocations.overridden_from_suggested_rank int` if the allocation log (`/lgu/event`) should read it from the table.
 8. **SMS templates:** six rows copied unchanged from `apps/web/src/copy/sms.ts` (a test compares them when that file exists; re-sync by hand). Added in `sms_templates.ts` (REVIEW the Filipino/Waray drafts): `sms.water_off_no_store`, `sms.status_flowing`, `sms.thanks_ack`, `sms.not_registered`, `sms.not_in_demo`, `sms.help`, `sms.no_active`. Suggest adding them to spec 08's SmsTemplate table / Dev B's file so there is one source. SMS window is rounded to whole hours; the `{litres}` value is a fixed 60 L (4 people x 15 L), because `NotificationPayload` carries no storage plan.
 9. **EventLogEntry** in spec 06 lacks `barangay_id` and `payload_json` (they exist in spec 00 / the table).
+
+## Datetimes
+
+Datetime inputs (`queued_at`, `recorded_at`, `confirmed_at`, `sent_at`, `deployed_at`, `decided_at`, ...) accept any ISO 8601 offset (`Z` or e.g. `+08:00`). They are normalised to UTC ISO before being written to the DB; all responses use UTC `Z`. The dashboard snapshot picks the latest event per barangay by `occurred_at`, then lifecycle rank (predicted < confirmed < deployed < notified < resident_confirmed < resolved), then `id`.
+
+## Spec 04 endpoint
+
+Function: `rank-chain` (logic `_shared/ranking.ts`, data access `_shared/ranking_data.ts`, tests `supabase/tests/functions/ranking.test.ts`). CORS-enabled, anon key like the others; writes `continuity_chains` with the service role. Needs migration `20261006000008_chains_unique.sql` (unique `(disruption_id, barangay_id)`) and the `sources` seed (000007 columns).
+
+### `POST rank-chain`
+Single: `{ "barangay_id": "poblacion-05", "disruption_id": "<uuid>" }` -> one `RankedChain`. Batch: `{ "disruption_id": "<uuid>", "barangay_ids": ["a", "b"] }` (`barangay_ids` optional) -> `{ "disruption_id", "cause", "chains": RankedChain[] }`. Without `barangay_ids`, every barangay affected per spec 03 at the disruption's `signal_level` (>= 2 -> all 57; below -> `chains: []`).
+```json
+{ "barangay_id": "poblacion-05", "disruption_id": "3f1c2a40-9b7e-4c1a-8d2e-5a6b7c8d9e01",
+  "ranked_sources": [
+    { "source_id": "...", "name": "Aqua Blue Water Station", "type": "refill_station", "safety_score": 0.9, "travel_minutes": 8,
+      "exceeds_jmp_benchmark": false, "cost_php_per_unit": 25, "rank": 1,
+      "provenance": "osm", "is_simulated": false, "source_ref": "https://www.openstreetmap.org/node/4721500289 (...)" },
+    { "source_id": "...", "name": "LGU water truck drop point (simulated)", "type": "trucking", "safety_score": 0.8, "travel_minutes": 10,
+      "exceeds_jmp_benchmark": false, "cost_php_per_unit": 0, "rank": 2,
+      "provenance": "placeholder", "is_simulated": true, "source_ref": "Simulated placeholder (docs/backup_sources.md rubric): ..." } ],
+  "excluded": [ { "source_id": "...", "name": "Neighboring barangay supply: ... (simulated)", "type": "neighboring_barangay",
+                  "reason": "system_wide_cause_neighbor_blended_network" } ],
+  "computed_at": "2026-07-10T04:00:00.000Z" }
+```
+- Order: safety desc, travel asc, cost asc, `source_id` asc. `exceeds_jmp_benchmark` = `travel_minutes > 30` (constant `JMP_ROUNDTRIP_MIN`): flagged, never excluded.
+- `excluded` reasons: `inactive` (spec 04 AC4, also logged), `system_wide_cause_neighbor_blended_network` (`neighboring_barangay` rows when the disruption cause is `turbidity` or `drought`; kept for `repair`).
+- Nothing eligible -> 200 with `ranked_sources: []`, `warning: "no_eligible_sources"` (persisted empty; a batch continues).
+- Re-running upserts the `continuity_chains` row (replaces `ranked_source_ids`, `computed_at`). Errors: 400 (ids, both `barangay_id` and `barangay_ids`, unknown ids in `barangay_ids`), 404 (disruption, or single-mode barangay), 405, 500.
+- When to call: after the disruption is confirmed (e.g. from the operator "confirm" flow or the allocation screen on load); call batch once, then `affected-areas` returns `top_source`. Not wired to run automatically: re-run it after a source is activated/deactivated.
+
+### Allocation screen: `suggested_rank` and `top_source` on `affected-areas`
+Two optional fields were added to each `affected-areas` row (non-breaking):
+- `suggested_rank` (int >= 1, or `null` when `disruption_id` is null): heuristic order for the LGU allocation list (signal desc, critical facility first, Level I before Level III before unserved, low-pressure zone first, then `barangay_id`). Show the list sorted by it and let the officer override (`overridden_from_suggested_rank`).
+- `top_source`: `{ source_id, name, type, safety_score, travel_minutes, exceeds_jmp_benchmark, cost_php_per_unit, provenance, is_simulated }` of the first ranked still-active source of the persisted chain, or `null` if `rank-chain` has not run for this disruption yet (or its lookup failed). Fetch the full chain with `rank-chain` when the officer opens a barangay.
+- Simulated labels: show a "simulated" / "placeholder" badge whenever `is_simulated` is true (all `trucking` and `neighboring_barangay` rows and no real facility); `provenance` `wsp`/`osm` rows are real facilities whose travel time, price and safety score are still our assumptions (`docs/backup_sources.md`). Show a "far, over 30 min" warning from `exceeds_jmp_benchmark`.
+
+### Shape differences vs Dev B's `contracts/spec04.ts` / mocks
+- `RankedSource.type` in Dev B's contract is `neighboring_purok`; the spec, DB enum and this endpoint use `neighboring_barangay` (change the contract; the mock uses no neighbor row).
+- Extras Dev B's contract does not have: `provenance`, `is_simulated`, `source_ref` per source, `excluded`, `warning` per chain (zod strips them if unused). Dev B's `BackupSource` UI fields (`letter`, `walk_minutes`, `safety`, `live`, `reported_by`, `price_litres`, `bring_containers`, `note`) are not returned: `letter` = A-D from `rank` client-side, `walk_minutes` is not computed (`travel_minutes` is the round trip, one way is half), `safety` is derived from `safety_score`.
+- The persisted chain table stores only ordered ids; the endpoint response is the full `RankedChain`.

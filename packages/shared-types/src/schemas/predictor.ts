@@ -25,7 +25,7 @@ export const PredictorOutput = z.object({
   signal_level: z.number().int().min(0).max(4), // max of the two levels below
   turbidity_level: z.number().int().min(0).max(4),
   drought_level: z.number().int().min(0).max(4),
-  computed_at: z.iso.datetime(),
+  computed_at: z.iso.datetime({ offset: true }),
   fallback_used: z.boolean(), // true when a missing feature forced the WSP deterministic rule
   forecast_source: z.enum(["seeded", "live", "missing"]).optional(), // where forecast_rain_48h_mm came from (optional: older responses omit it)
 });

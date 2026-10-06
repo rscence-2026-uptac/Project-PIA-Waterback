@@ -8,7 +8,7 @@ import type { EventRow } from "./dashboard_snapshot.ts";
 export type SupabaseLike = { from(table: string): any };
 const PAGE = 1000;
 
-async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>): Promise<T[]> {
+export async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build(from, from + PAGE - 1);
@@ -76,7 +76,7 @@ export function makeDisruptionStore(supabase: SupabaseLike): DisruptionStore {
 
 export async function fetchEvents(supabase: SupabaseLike, disruptionId: string): Promise<EventRow[]> {
   return await fetchAll<EventRow>((a, b) => supabase.from("event_log")
-    .select("event_type,barangay_id,occurred_at,payload_json")
+    .select("id,event_type,barangay_id,occurred_at,payload_json")
     .eq("disruption_id", disruptionId).order("occurred_at").order("id").range(a, b));
 }
 

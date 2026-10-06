@@ -5,7 +5,7 @@ do $$ begin
   assert (select count(*) from barangays where service_level = 'unserved') = 31, '31 unserved';
   assert (select count(*) from barangays where service_level = 'level_i') = 4, '4 level_i';
   assert (select count(*) from barangays where service_level = 'unserved'
-          and (zone is not null or piped_households is not null or unpiped_households is not null or lat is not null)) = 0, 'unserved rows carry no guessed data';
+          and (zone is not null or piped_households is not null or unpiped_households is not null)) = 0, 'unserved rows carry no guessed data (lat/lng are approximate OSM centroids, allowed)';
   assert (select count(*) from barangays where service_level = 'unserved' and coverage_source <> 'unknown') = 0, 'unserved coverage unknown';
   assert (select count(*) from barangays where barangay_id in ('canlapwas','munoz','guindapunan','bunu-anan','darahuway-guti','darahuway-dako','poblacion-05')) = 7, 'kept ids';
   assert (select name from barangays where barangay_id = 'poblacion-05') = 'Poblacion 5 (Barangay 5)', 'official name';

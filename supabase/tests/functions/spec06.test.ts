@@ -269,6 +269,27 @@ describe("sync-queue", () => {
     expect(s.readings[0]).toMatchObject({ source: "operator", is_simulated: false, treated_turbidity_ntu: 3.2, intake_id: "kulador" });
     expect(r.summary).toEqual({ synced: 3, already_synced: 0, rejected: 0, failed: 0 });
   });
+  it("accepts +08:00 offsets (stored as the same UTC instant); garbage datetime rejected", async () => {
+    const r = await syncQueue(s, [
+      reading(1, T(1), { recorded_at: "2026-10-06T13:00:00+08:00" }),
+      reading(2, T(2), { recorded_at: "not-a-date" }),
+      { ...reading(3, T(3)), queued_at: "2026-10-06T13:05:00+08:00" },
+      { ...reading(4, T(4)), queued_at: "garbage" },
+    ], NOW);
+    expect(r.results.map((x) => [x.local_id, x.status]).sort()).toEqual([[rid(1), "synced"], [rid(2), "rejected"], [rid(3), "synced"], [rid(4), "rejected"]]);
+    expect(s.readings.find((x) => x.client_local_id === rid(1))!.recorded_at).toBe("2026-10-06T05:00:00.000Z");
+  });
+  it("notify / confirmation: +08:00 accepted, occurred_at stored as the same UTC instant; garbage 400", async () => {
+    await confirmAllocation(s, [dec("payao", 1)], NOW);
+    await notifyResidents({ store: s, sms: DRY, now: NOW }, [note("payao", "pwa_push", { sent_at: "2026-10-06T12:00:00+08:00" })]);
+    expect(s.events.find((e) => e.event_type === "notified")!.occurred_at).toBe("2026-10-06T04:00:00.000Z");
+    expect(await code(notifyResidents({ store: s, sms: DRY, now: NOW }, [note("payao", "pwa_push", { sent_at: "garbage" })]))).toMatchObject({ status: 400 });
+    await recordConfirmation(s, conf("payao", true, { confirmed_at: "2026-10-06T12:30:00+08:00" }), NOW);
+    const c = s.events.find((e) => e.event_type === "resident_confirmed")!;
+    expect(c.occurred_at).toBe("2026-10-06T04:30:00.000Z");
+    expect((c.payload_json as any).confirmed_at).toBe("2026-10-06T04:30:00.000Z");
+    expect(await code(recordConfirmation(s, conf("payao", true, { confirmed_at: "yesterday" }), NOW))).toMatchObject({ status: 400 });
+  });
   it("duplicate local_id: already_synced, not an error (same batch and replay)", async () => {
     await syncQueue(s, [reading(1, T(1))], NOW);
     const r = await syncQueue(s, [reading(1, T(1)), reading(2, T(2))], NOW);

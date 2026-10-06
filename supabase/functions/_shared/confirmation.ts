@@ -79,7 +79,7 @@ export async function recordConfirmation(store: Store, body: unknown, now: Date)
     occurred_at: clampToNow(c.confirmed_at, now), barangay_id: c.barangay_id, client_local_id: key,
     payload_json: {
       confirmed_by: c.confirmed_by, channel: c.channel, restored: c.restored, reopen: !c.restored,
-      confirmed_at: c.confirmed_at, recorded_at: at,
+      confirmed_at: new Date(c.confirmed_at).toISOString(), recorded_at: at,
     },
   }]);
   if (!inserted) return summary(disruption.status, events, "already_synced"); // lost a race with the same key

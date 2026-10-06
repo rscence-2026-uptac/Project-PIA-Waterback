@@ -1,5 +1,5 @@
 // Spec 03: affected-area mapping (pure logic + request handler with injected data access).
-import { isLowPressureZone } from "./constants.generated.ts";
+import { isLowPressureZone, WSP_CONSTANTS } from "./constants.generated.ts";
 import type { FetchData } from "./handler.ts";
 import type { FetchLive } from "./forecast.ts";
 import { makeLiveFetcher } from "./forecast.ts";
@@ -35,6 +35,41 @@ export interface AffectedAreaOut {
   /** Extra fields (not in the spec 03 zod object; Dev B's parse strips them). */
   resident_state: ResidentStateKind;
   heads_up: boolean;
+  /** Spec 03/04 heuristic: 1-based allocation priority (see suggestRanks). null when there is no disruption. */
+  suggested_rank: number | null;
+  /** First still-active source of the persisted spec 04 chain; null when no chain is persisted yet. */
+  top_source: TopSource | null;
+}
+export interface TopSource {
+  source_id: string;
+  name: string;
+  type: string;
+  safety_score: number;
+  travel_minutes: number;
+  exceeds_jmp_benchmark: boolean;
+  cost_php_per_unit: number;
+  provenance: string;
+  is_simulated: boolean;
+}
+/** Structural source row (matches ranking.ts SourceRow without importing it). */
+export interface TopSourceInput { id: string; name: string; type: string; safety_score: number; travel_minutes: number; cost_php_per_unit: number; provenance: string; is_simulated: boolean }
+export const toTopSource = (s: TopSourceInput): TopSource => ({
+  source_id: s.id, name: s.name, type: s.type, safety_score: s.safety_score, travel_minutes: s.travel_minutes,
+  exceeds_jmp_benchmark: s.travel_minutes > WSP_CONSTANTS.JMP_ROUNDTRIP_MIN, cost_php_per_unit: s.cost_php_per_unit, provenance: s.provenance, is_simulated: s.is_simulated,
+});
+
+const LEVEL_ORDER: Record<ServiceLevel, number> = { level_i: 0, level_iii: 1, unserved: 2 };
+/**
+ * suggested_rank (HEURISTIC, not a WSP fact): 1-based priority for the LGU allocation screen. Sort keys, in order:
+ * signal desc; vulnerable_flag (critical facility) first; service level Level I (unpiped, equity layer) before Level III before unserved;
+ * low_pressure_zone first; barangay_id asc (deterministic). Returns barangay_id -> rank.
+ */
+export function suggestRanks(rows: Pick<AffectedAreaOut, "barangay_id" | "signal_level" | "vulnerable_flag" | "service_level" | "low_pressure_zone">[]): Map<string, number> {
+  const sorted = [...rows].sort((a, b) =>
+    (b.signal_level - a.signal_level) || (Number(b.vulnerable_flag) - Number(a.vulnerable_flag)) ||
+    (LEVEL_ORDER[a.service_level] - LEVEL_ORDER[b.service_level]) || (Number(b.low_pressure_zone) - Number(a.low_pressure_zone)) ||
+    (a.barangay_id < b.barangay_id ? -1 : a.barangay_id > b.barangay_id ? 1 : 0));
+  return new Map(sorted.map((r, i) => [r.barangay_id, i + 1]));
 }
 
 export function buildAffectedAreas(
@@ -42,7 +77,7 @@ export function buildAffectedAreas(
   ctx: { signal_level: number; cause: DisruptionCause | null; disruption_id: string | null; min_signal?: number },
 ): AffectedAreaOut[] {
   if (ctx.signal_level < (ctx.min_signal ?? 0)) return [];
-  return barangays.map((b) => {
+  const rows = barangays.map((b) => {
     const rs = residentState(ctx.signal_level, ctx.cause, b.service_level);
     const unserved = b.service_level === "unserved";
     // Unknown unless we have both counts AND a source for them: never show a guessed number (spec 03 AC).
@@ -65,8 +100,15 @@ export function buildAffectedAreas(
       vulnerable_flag: b.critical_facilities.length > 0, // residents.is_vulnerable is PII: not used here
       resident_state: rs.state,
       heads_up: rs.heads_up,
+      suggested_rank: null,
+      top_source: null,
     };
   });
+  if (ctx.disruption_id != null) {
+    const ranks = suggestRanks(rows);
+    for (const r of rows) r.suggested_rank = ranks.get(r.barangay_id) ?? null;
+  }
+  return rows;
 }
 
 export interface AffectedDeps {
@@ -76,6 +118,8 @@ export interface AffectedDeps {
   getById: (id: string) => Promise<DisruptionRow | null>;
   now?: () => Date;
   fetchLive?: FetchLive;
+  /** Spec 04: barangay_id -> first active source of the persisted chain for this disruption. Optional; failure degrades to null top_source. */
+  fetchTopSources?: (disruptionId: string) => Promise<Map<string, TopSourceInput>>;
 }
 
 export async function handleAffectedAreas(req: Request, deps: AffectedDeps): Promise<Response> {
@@ -100,7 +144,14 @@ export async function handleAffectedAreas(req: Request, deps: AffectedDeps): Pro
       deps.fetchBarangays(),
     ]);
     const cause = disruption?.cause ?? causeOf(prediction);
-    return json(200, buildAffectedAreas(barangays, { signal_level: prediction.signal_level, cause, disruption_id: disruption?.id ?? null, min_signal: minSignal }));
+    const rows = buildAffectedAreas(barangays, { signal_level: prediction.signal_level, cause, disruption_id: disruption?.id ?? null, min_signal: minSignal });
+    if (disruption && deps.fetchTopSources && rows.length) {
+      try {
+        const tops = await deps.fetchTopSources(disruption.id);
+        for (const r of rows) { const s = tops.get(r.barangay_id); if (s) r.top_source = toTopSource(s); }
+      } catch (e) { console.error("affected-areas: top_source lookup failed (returning null)", e); }
+    }
+    return json(200, rows);
   } catch (e) {
     console.error("affected-areas failed", e);
     return json(500, { error: "failed to compute affected areas" });

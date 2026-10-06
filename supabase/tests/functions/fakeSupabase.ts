@@ -17,7 +17,8 @@ export class FakeSupabase {
 
 class Query implements PromiseLike<{ data: any; error: any }> {
   private filters: Filter[] = [];
-  private op: "select" | "insert" | "update" = "select";
+  private op: "select" | "insert" | "update" | "upsert" = "select";
+  private conflict: string[] = [];
   private payload: any;
   private orders: { c: string; asc: boolean }[] = [];
   private lim: number | null = null;
@@ -26,6 +27,8 @@ class Query implements PromiseLike<{ data: any; error: any }> {
   constructor(private db: FakeSupabase, private t: string) {}
   select(_cols?: string) { return this; }
   insert(p: any) { this.op = "insert"; this.payload = p; return this; }
+  upsert(p: any, o: { onConflict?: string } = {}) { this.op = "upsert"; this.payload = p; this.conflict = (o.onConflict ?? "id").split(",").map((s) => s.trim()); return this; }
+  in(c: string, v: any[]) { this.filters.push((r) => v.includes(r[c])); return this; }
   update(p: any) { this.op = "update"; this.payload = p; return this; }
   eq(c: string, v: any) { this.filters.push((r) => r[c] === v); return this; }
   neq(c: string, v: any) { this.filters.push((r) => r[c] !== v); return this; }
@@ -48,6 +51,14 @@ class Query implements PromiseLike<{ data: any; error: any }> {
       const row = { id: randomUUID(), resolved_at: null, ...this.payload };
       rows.push(row);
       return this.shape([row]);
+    }
+    if (this.op === "upsert") {
+      const out: any[] = [];
+      for (const p of [].concat(this.payload)) {
+        const ex = rows.find((r) => this.conflict.every((c) => r[c] === (p as any)[c]));
+        if (ex) { Object.assign(ex, p); out.push(ex); } else { const row = { id: randomUUID(), ...(p as any) }; rows.push(row); out.push(row); }
+      }
+      return this.shape(out);
     }
     let hit = rows.filter((r) => this.filters.every((f) => f(r)));
     if (this.op === "update") { for (const r of hit) Object.assign(r, this.payload); return this.shape(hit); }

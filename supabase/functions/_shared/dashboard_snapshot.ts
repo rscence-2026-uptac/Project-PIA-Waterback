@@ -6,7 +6,11 @@ import type { DisruptionRow } from "./disruption_monitor.ts";
 
 export type CardStatus = "predicted" | "confirmed" | "deployed" | "notified" | "resolved";
 export type EventType = "predicted" | "confirmed" | "deployed" | "notified" | "resident_confirmed" | "resolved";
+export const LIFECYCLE_RANK: Record<EventType, number> = {
+  predicted: 0, confirmed: 1, deployed: 2, notified: 3, resident_confirmed: 4, resolved: 5,
+};
 export interface EventRow {
+  id?: string | number;
   event_type: EventType;
   barangay_id: string | null; // NULL = system-wide
   occurred_at: string;
@@ -35,7 +39,13 @@ export function buildSnapshot(
   served: ServedBarangay[], disruption: DisruptionRow | null, events: EventRow[], generatedAt: Date,
 ) {
   const gen = generatedAt.toISOString();
-  const sorted = [...events].sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at));
+  // Deterministic order: occurred_at (instant), then lifecycle rank, then id (events without id keep input order).
+  const sorted = events.map((e, i) => ({ e, i }))
+    .sort((a, b) => Date.parse(a.e.occurred_at) - Date.parse(b.e.occurred_at)
+      || LIFECYCLE_RANK[a.e.event_type] - LIFECYCLE_RANK[b.e.event_type]
+      || (a.e.id != null && b.e.id != null ? (a.e.id < b.e.id ? -1 : a.e.id > b.e.id ? 1 : 0) : 0)
+      || a.i - b.i)
+    .map((x) => x.e);
   const rows: DashboardRowOut[] = served.map((b) => {
     if (!disruption) {
       return { barangay_id: b.barangay_id, signal_level: 0, status: "resolved", last_event_at: gen, resident_state: residentState(0, null, b.service_level).state };
