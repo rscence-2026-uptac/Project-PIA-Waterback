@@ -17,22 +17,6 @@ function classes(variant: Variant, extra = "") {
   return `press inline-flex items-center justify-center gap-2 rounded-md ${padding} text-center text-[17px] font-bold leading-tight disabled:opacity-50 ${VARIANTS[variant]} ${extra}`;
 }
 
-/** Same look as ButtonLink, for links that leave the app (e.g. Google Maps directions). */
-export function ExternalButtonLink({ variant = "primary", icon, children, className, href }: {
-  variant?: Variant;
-  icon?: IconName;
-  children: ReactNode;
-  className?: string;
-  href: string;
-}) {
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={classes(variant, className)}>
-      {icon && <Icon name={icon} />}
-      {children}
-    </a>
-  );
-}
-
 export function Button({ variant = "primary", icon, children, className, ...rest }: {
   variant?: Variant;
   icon?: IconName;

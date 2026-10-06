@@ -1,17 +1,25 @@
 // SPEC: 05 (amendment 2026-10-06) — where the backup sources are, and which one is nearest.
 // Loaded only when the resident taps "Show on map", so the Sources screen stays light on weak data.
 // Pins carry the plan's letters; everything the map shows is also said in words below it.
+// Walking directions are worked out in the app (lib/walkingRoute.ts) and drawn as a route on the map.
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Marker, TileLayer, Tooltip } from "react-leaflet";
+import { MapContainer, Marker, Polyline, TileLayer, Tooltip } from "react-leaflet";
 import { useCopy } from "../../copy/i18n";
 import type { BackupSource } from "../../data/mock";
-import { Button, ExternalButtonLink } from "../../ui/Button";
+import { Button } from "../../ui/Button";
 import { Icon, PATHS } from "../../ui/Icon";
+import { fetchWalkingRoute, type WalkingRoute } from "../../lib/walkingRoute";
 
 type Point = { lat: number; lng: number };
 type Located = "barangay" | "asking" | "gps" | "failed";
+type RouteState =
+  | { status: "idle" }
+  | { status: "loading"; id: string }
+  | { status: "ready"; id: string; route: WalkingRoute }
+  | { status: "failed"; id: string };
+
 
 const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -51,7 +59,8 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   const [you, setYou] = useState<Point | null>(null);
   const [located, setLocated] = useState<Located>("barangay");
   const [tilesFailed, setTilesFailed] = useState(() => !navigator.onLine);
-  const reduce = useMemo(() => reduceMotion(), []);
+  const [routeState, setRouteState] = useState<RouteState>({ status: "idle" });
+  const reduce = useMemo(reduceMotion, []);
 
   const mapped = sources.filter((s): s is BackupSource & Point => s.lat !== null && s.lng !== null);
   const origin = you ?? home;
@@ -59,15 +68,34 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   const withDistance = origin ? mapped.map((s) => ({ source: s, metres: metresBetween(origin, s) })) : [];
   const nearest = withDistance.reduce<(typeof withDistance)[number] | null>((best, d) => (!best || d.metres < best.metres ? d : best), null);
   const focus = withDistance.find((d) => d.source.source_id === selectedId) ?? nearest;
+  // A route belongs to one source; picking another source puts the card back.
+  const route = routeState.status !== "idle" && routeState.id === focus?.source.source_id ? routeState : null;
+  const path = route?.status === "ready" ? route.route.path : null;
 
-  // Keep every pin and the resident in view; there's no dragging on phones (it would trap page scroll).
+  // A new starting point (GPS) makes an old route wrong.
+  useEffect(() => setRouteState({ status: "idle" }), [you]);
+
+  // Keep every pin and the resident in view (or the whole route while one is shown); there's no
+  // dragging on phones, because it would trap page scroll.
   useEffect(() => {
     if (!map) return;
-    const points: [number, number][] = mapped.map((s) => [s.lat, s.lng]);
-    if (origin) points.push([origin.lat, origin.lng]);
+    const points: [number, number][] = path ?? mapped.map((s) => [s.lat, s.lng]);
+    if (!path && origin) points.push([origin.lat, origin.lng]);
     if (points.length === 0) return;
-    map.fitBounds(L.latLngBounds(points), { padding: [44, 44], maxZoom: 16, animate: !reduce });
-  }, [map, you, home, sources]); // eslint-disable-line react-hooks/exhaustive-deps
+    map.fitBounds(L.latLngBounds(points), { padding: [44, 44], maxZoom: 17, animate: !reduce });
+  }, [map, you, home, sources, path]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function showRoute() {
+    if (!origin || !focus) return;
+    const id = focus.source.source_id;
+    setRouteState({ status: "loading", id });
+    try {
+      const walking = await fetchWalkingRoute(origin, focus.source);
+      setRouteState({ status: "ready", id, route: walking });
+    } catch {
+      setRouteState({ status: "failed", id });
+    }
+  }
 
   function useMyLocation() {
     if (!("geolocation" in navigator)) return setLocated("failed");
@@ -123,6 +151,12 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
               <Tooltip permanent direction="top" offset={[0, -16]} className="map-label">{t("sources.map_you")}</Tooltip>
             </Marker>
           )}
+          {path && (
+            <>
+              <Polyline positions={path} interactive={false} pathOptions={{ color: "#fdfdfd", weight: 11, opacity: 1 }} />
+              <Polyline positions={path} interactive={false} pathOptions={{ color: "#1a6e9c", weight: 6, opacity: 1 }} />
+            </>
+          )}
           {mapped.map((s, i) => (
             <Marker
               key={s.source_id}
@@ -152,7 +186,20 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
         )}
       </div>
 
-      {focus && (
+      {focus && route?.status === "ready" && (
+        <section className="mt-3 rounded-xl border-2 border-tide p-4" aria-labelledby="route-title">
+          <p id="route-title" className="text-[15px] font-bold text-tide">{t("route.title", { letter: focus.source.letter })}</p>
+          <p className="mt-1 font-display text-[22px] leading-tight">{focus.source.name}</p>
+          <p className="mt-2 text-[20px] font-bold">
+            {t("route.total", { distance: distanceText(route.route.metres), min: Math.max(1, Math.round(route.route.minutes)) })}
+          </p>
+          <Button variant="quiet" className="mt-4 w-full" onClick={() => setRouteState({ status: "idle" })}>
+            {t("route.done")}
+          </Button>
+        </section>
+      )}
+
+      {focus && route?.status !== "ready" && (
         <div className="mt-3 rounded-xl border-2 border-tide p-4">
           <p className="text-[15px] font-bold text-tide">
             {focus === nearest ? t("sources.map_nearest", { letter: focus.source.letter }) : t("sources.plan_label", { letter: focus.source.letter })}
@@ -161,13 +208,10 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
           <p className="mt-1 text-ink-soft">
             {distanceText(focus.metres)} · {located === "gps" ? t("sources.map_from_you") : t("sources.map_from_barangay")}
           </p>
-          <ExternalButtonLink
-            href={`https://www.google.com/maps/dir/?api=1&destination=${focus.source.lat},${focus.source.lng}&travelmode=walking`}
-            icon="pin"
-            className="mt-3 w-full"
-          >
-            {t("sources.map_directions")}
-          </ExternalButtonLink>
+          {route?.status === "failed" && <p role="status" className="mt-3 font-bold">{t("route.failed")}</p>}
+          <Button icon="pin" className="mt-3 w-full" onClick={showRoute} disabled={route?.status === "loading"}>
+            {route?.status === "loading" ? t("route.loading") : route?.status === "failed" ? t("app.retry") : t("route.show")}
+          </Button>
         </div>
       )}
 
