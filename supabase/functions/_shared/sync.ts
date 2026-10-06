@@ -52,7 +52,7 @@ async function syncOne(store: Store, item: OfflineQueueItem, now: Date): Promise
           details: p.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) };
       }
       const r = await store.insertReading({
-        recorded_at: p.data.recorded_at, intake_id: p.data.intake_id, turbidity_ntu: p.data.turbidity_ntu,
+        recorded_at: new Date(p.data.recorded_at).toISOString(), intake_id: p.data.intake_id, turbidity_ntu: p.data.turbidity_ntu,
         plant_status: p.data.plant_status, reservoir_pct: p.data.reservoir_pct, clarifier_inflow_lps: p.data.clarifier_inflow_lps,
         treated_turbidity_ntu: p.data.treated_turbidity_ntu, source: "operator", is_simulated: false, client_local_id: item.local_id,
       });

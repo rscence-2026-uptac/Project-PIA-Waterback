@@ -76,7 +76,7 @@ export function makeDisruptionStore(supabase: SupabaseLike): DisruptionStore {
 
 export async function fetchEvents(supabase: SupabaseLike, disruptionId: string): Promise<EventRow[]> {
   return await fetchAll<EventRow>((a, b) => supabase.from("event_log")
-    .select("event_type,barangay_id,occurred_at,payload_json")
+    .select("id,event_type,barangay_id,occurred_at,payload_json")
     .eq("disruption_id", disruptionId).order("occurred_at").order("id").range(a, b));
 }
 

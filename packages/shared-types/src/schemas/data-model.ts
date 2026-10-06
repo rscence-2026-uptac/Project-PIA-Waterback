@@ -3,7 +3,7 @@ import { z } from "zod";
 // specs/00-data-model.md
 export const Reading = z.object({
   id: z.uuid(),
-  recorded_at: z.iso.datetime(),
+  recorded_at: z.iso.datetime({ offset: true }),
   intake_id: z.string(),
   turbidity_ntu: z.number().nonnegative(),       // CWD 2022 WSP: >= 500 NTU temporary shut-off
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
@@ -32,8 +32,8 @@ export type Intake = z.infer<typeof Intake>;
 
 export const Disruption = z.object({
   id: z.uuid(),
-  started_at: z.iso.datetime(),
-  resolved_at: z.iso.datetime().nullable(),
+  started_at: z.iso.datetime({ offset: true }),
+  resolved_at: z.iso.datetime({ offset: true }).nullable(),
   cause: z.enum(["turbidity", "drought", "repair"]),
   p_turbidity: z.number().min(0).max(1).nullable(), // null for operator-logged repair work
   p_drought: z.number().min(0).max(1).nullable(),
@@ -41,11 +41,11 @@ export const Disruption = z.object({
   status: z.enum(["predicted", "confirmed", "deployed", "notified", "resolved"]),
   // status-screen timing (Dev B handoff item 3); all nullable. Per-barangay "restored at" is NOT a column:
   // it is the resident_confirmed event with payload_json.restored = true (spec 00).
-  window_start: z.iso.datetime().nullable().default(null),
-  window_end: z.iso.datetime().nullable().default(null),
-  likely_at: z.iso.datetime().nullable().default(null),
-  next_update_at: z.iso.datetime().nullable().default(null),
-  heads_up_from: z.iso.datetime().nullable().default(null),
+  window_start: z.iso.datetime({ offset: true }).nullable().default(null),
+  window_end: z.iso.datetime({ offset: true }).nullable().default(null),
+  likely_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  next_update_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  heads_up_from: z.iso.datetime({ offset: true }).nullable().default(null),
 });
 export type Disruption = z.infer<typeof Disruption>;
 
@@ -66,7 +66,7 @@ export const ContinuityChain = z.object({
   barangay_id: z.string(),
   disruption_id: z.uuid(),
   ranked_source_ids: z.array(z.uuid()), // ordered safety desc, time asc, cost asc
-  computed_at: z.iso.datetime(),
+  computed_at: z.iso.datetime({ offset: true }),
 });
 export type ContinuityChain = z.infer<typeof ContinuityChain>;
 
@@ -76,7 +76,7 @@ export const Allocation = z.object({
   barangay_id: z.string(),
   priority_rank: z.number().int().positive(),
   officer_id: z.string(),
-  decided_at: z.iso.datetime(),
+  decided_at: z.iso.datetime({ offset: true }),
   note: z.string().optional(),
 });
 export type Allocation = z.infer<typeof Allocation>;
@@ -95,7 +95,7 @@ export const EventLog = z.object({
   barangay_id: z.string().nullable().default(null), // null = system-wide event (predicted/confirmed); dashboard fans it out to served barangays
   client_local_id: z.string().nullable().default(null), // idempotency key for resident confirmations from the offline queue
   actor: z.string(), // user id or 'system'
-  occurred_at: z.iso.datetime(),
+  occurred_at: z.iso.datetime({ offset: true }),
   payload_json: z.record(z.string(), z.unknown()).optional(),
 });
 export type EventLog = z.infer<typeof EventLog>;
@@ -125,7 +125,7 @@ export const Resident = z.object({
   preferred_language: z.enum(["waray", "filipino", "english"]).default("waray"),
   channel: z.enum(["pwa", "sms"]),
   is_vulnerable: z.boolean().default(false),
-  created_at: z.iso.datetime(),
+  created_at: z.iso.datetime({ offset: true }),
 });
 export type Resident = z.infer<typeof Resident>;
 
@@ -141,7 +141,7 @@ export const RainfallDaily = z.object({
   date: z.iso.date(),
   precipitation_mm: z.number().nonnegative(),
   source: z.string().default("open-meteo"),
-  fetched_at: z.iso.datetime().optional(),
+  fetched_at: z.iso.datetime({ offset: true }).optional(),
 });
 export type RainfallDaily = z.infer<typeof RainfallDaily>;
 
@@ -156,6 +156,6 @@ export const RainForecastHourly = z.object({ // forecast_rain_48h_mm feature (sp
   ts: z.iso.datetime({ offset: true }),
   precipitation_mm: z.number().nonnegative(),
   source: z.string().default("open-meteo-historical-forecast"),
-  fetched_at: z.iso.datetime().optional(),
+  fetched_at: z.iso.datetime({ offset: true }).optional(),
 });
 export type RainForecastHourly = z.infer<typeof RainForecastHourly>;

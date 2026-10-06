@@ -23,6 +23,6 @@ export const RankedChain = z.object({
   barangay_id: z.string(),
   disruption_id: z.uuid(),
   ranked_sources: z.array(RankedSource),
-  computed_at: z.iso.datetime(),
+  computed_at: z.iso.datetime({ offset: true }),
 });
 export type RankedChain = z.infer<typeof RankedChain>;

@@ -252,6 +252,22 @@ describe("spec 07 dashboard snapshot", () => {
   const ev = (event_type: EventRow["event_type"], at: string, barangay_id: string | null = null, payload_json: any = null): EventRow => ({ event_type, occurred_at: at, barangay_id, payload_json });
   const row = (s: ReturnType<typeof buildSnapshot>, id: string) => s.barangays.find((b) => b.barangay_id === id)!;
 
+  it("equal occurred_at: lifecycle rank then id decide the winner, regardless of input order", () => {
+    const at = "2026-07-10T04:00:00.000Z";
+    const b = served[0].barangay_id;
+    const mk = (event_type: EventRow["event_type"], id: string): EventRow => ({ ...ev(event_type, at, b), id });
+    const orders = [
+      [mk("deployed", "z"), mk("notified", "a")],
+      [mk("notified", "a"), mk("deployed", "z")],
+    ];
+    for (const evs of orders) expect(row(buildSnapshot(served, disruption, evs, NOW), b).status).toBe("notified");
+    // same type and time: higher id wins in either input order
+    const two = [{ ...ev("deployed", at, b, { step: "x" }), id: "1" }, { ...ev("deployed", at, b, { step: "y" }), id: "2" }];
+    expect(row(buildSnapshot(served, disruption, two, NOW), b).last_event_at).toBe(at);
+    // offset-form timestamps compare as instants
+    const off = [ev("notified", "2026-07-10T12:00:00.000+08:00", b), ev("deployed", "2026-07-10T04:00:00.000Z", b)];
+    expect(row(buildSnapshot(served, disruption, off, NOW), b).status).toBe("notified");
+  });
   it("statusAfter maps event types to card status", () => {
     expect(statusAfter({ event_type: "deployed", payload_json: null })).toBe("deployed");
     expect(statusAfter({ event_type: "resident_confirmed", payload_json: { restored: true } })).toBe("resolved");

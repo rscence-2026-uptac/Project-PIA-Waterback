@@ -149,3 +149,7 @@ Local: `supabase functions serve --env-file .env.local` (leave `SMS_LIVE` out).
 7. **`overridden_from_suggested_rank`** is stored in the `deployed` event payload because `allocations` has no column for it. Suggest a nullable `allocations.overridden_from_suggested_rank int` if the allocation log (`/lgu/event`) should read it from the table.
 8. **SMS templates:** six rows copied unchanged from `apps/web/src/copy/sms.ts` (a test compares them when that file exists; re-sync by hand). Added in `sms_templates.ts` (REVIEW the Filipino/Waray drafts): `sms.water_off_no_store`, `sms.status_flowing`, `sms.thanks_ack`, `sms.not_registered`, `sms.not_in_demo`, `sms.help`, `sms.no_active`. Suggest adding them to spec 08's SmsTemplate table / Dev B's file so there is one source. SMS window is rounded to whole hours; the `{litres}` value is a fixed 60 L (4 people x 15 L), because `NotificationPayload` carries no storage plan.
 9. **EventLogEntry** in spec 06 lacks `barangay_id` and `payload_json` (they exist in spec 00 / the table).
+
+## Datetimes
+
+Datetime inputs (`queued_at`, `recorded_at`, `confirmed_at`, `sent_at`, `deployed_at`, `decided_at`, ...) accept any ISO 8601 offset (`Z` or e.g. `+08:00`). They are normalised to UTC ISO before being written to the DB; all responses use UTC `Z`. The dashboard snapshot picks the latest event per barangay by `occurred_at`, then lifecycle rank (predicted < confirmed < deployed < notified < resident_confirmed < resolved), then `id`.

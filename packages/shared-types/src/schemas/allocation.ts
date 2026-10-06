@@ -16,7 +16,7 @@ export const DeployResponse = z.object({
   barangay_id: z.string(),
   source_id: z.uuid(), // the ranked_chain entry actually deployed
   deployed_by: z.string(),
-  deployed_at: z.iso.datetime(),
+  deployed_at: z.iso.datetime({ offset: true }),
 });
 export type DeployResponse = z.infer<typeof DeployResponse>;
 
@@ -29,7 +29,7 @@ export const NotificationPayload = z.object({
   expected_duration_hint: z.string().optional(), // plain-language, not a committed SLA
   store_water_advice: z.boolean(),
   nearest_source_name: z.string(),
-  sent_at: z.iso.datetime(),
+  sent_at: z.iso.datetime({ offset: true }),
 });
 export type NotificationPayload = z.infer<typeof NotificationPayload>;
 
@@ -39,7 +39,7 @@ export const ResidentConfirmation = z.object({
   confirmed_by: z.enum(["resident", "barangay_captain"]),
   channel: z.enum(["pwa", "sms_reply"]),
   restored: z.boolean(), // false => re-enters allocation, matches the "no, adjust" loop
-  confirmed_at: z.iso.datetime(),
+  confirmed_at: z.iso.datetime({ offset: true }),
 });
 export type ResidentConfirmation = z.infer<typeof ResidentConfirmation>;
 
@@ -47,6 +47,6 @@ export const EventLogEntry = z.object({
   disruption_id: z.uuid(),
   event_type: z.enum(["deployed", "notified", "resident_confirmed", "resolved"]),
   actor: z.string(),
-  occurred_at: z.iso.datetime(),
+  occurred_at: z.iso.datetime({ offset: true }),
 });
 export type EventLogEntry = z.infer<typeof EventLogEntry>;

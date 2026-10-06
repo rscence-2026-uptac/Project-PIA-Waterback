@@ -230,3 +230,14 @@ describe("residentState", () => {
   ] as const)("signal %s cause %s %s -> %s heads_up=%s", (sig, cause, svc, state, heads) =>
     expect(T.residentState(sig, cause, svc)).toEqual({ state, heads_up: heads }));
 });
+
+describe("datetime inputs accept offsets", () => {
+  const alloc = { id: U, disruption_id: U, barangay_id: "p1", priority_rank: 1, officer_id: "o" };
+  it("+08:00 accepted and same instant as Z; garbage rejected", () => {
+    const a = T.Allocation.parse({ ...alloc, decided_at: "2026-07-01T08:00:00+08:00" });
+    expect(Date.parse(a.decided_at)).toBe(Date.parse("2026-07-01T00:00:00Z"));
+    expect(T.Allocation.safeParse({ ...alloc, decided_at: "2026-07-01T00:00:00Z" }).success).toBe(true);
+    for (const bad of ["garbage", "2026-07-01", "2026-07-01 08:00:00", "2026-13-01T00:00:00Z"])
+      expect(T.Allocation.safeParse({ ...alloc, decided_at: bad }).success).toBe(false);
+  });
+});

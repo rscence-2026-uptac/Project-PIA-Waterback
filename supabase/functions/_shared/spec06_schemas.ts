@@ -20,7 +20,7 @@ export const DeployResponse = z.object({
   barangay_id: z.string().min(1),
   source_id: z.uuid(), // the ranked_chain entry actually deployed
   deployed_by: z.string().min(1),
-  deployed_at: z.iso.datetime(),
+  deployed_at: z.iso.datetime({ offset: true }),
 });
 export type DeployResponse = z.infer<typeof DeployResponse>;
 
@@ -33,7 +33,7 @@ export const NotificationPayload = z.object({
   expected_duration_hint: z.string().optional(),
   store_water_advice: z.boolean(),
   nearest_source_name: z.string(),
-  sent_at: z.iso.datetime(),
+  sent_at: z.iso.datetime({ offset: true }),
 });
 export type NotificationPayload = z.infer<typeof NotificationPayload>;
 
@@ -43,7 +43,7 @@ export const ResidentConfirmation = z.object({
   confirmed_by: z.enum(["resident", "barangay_captain"]),
   channel: z.enum(["pwa", "sms_reply"]),
   restored: z.boolean(),
-  confirmed_at: z.iso.datetime(),
+  confirmed_at: z.iso.datetime({ offset: true }),
 });
 export type ResidentConfirmation = z.infer<typeof ResidentConfirmation>;
 
@@ -64,7 +64,7 @@ export const OperatorReadingForm = z.object({
 /** Payload of a queued `reading` item: the form + treated turbidity (Kulador only, else null) + when it was taken. */
 export const QueuedReadingPayload = OperatorReadingForm.extend({
   treated_turbidity_ntu: z.number().nonnegative().nullable().default(null),
-  recorded_at: z.iso.datetime(),
+  recorded_at: z.iso.datetime({ offset: true }),
 });
 export type QueuedReadingPayload = z.infer<typeof QueuedReadingPayload>;
 
@@ -72,7 +72,7 @@ export const OfflineQueueItem = z.object({
   local_id: z.uuid(),
   kind: z.enum(["reading", "resident_confirmation"]),
   payload: z.record(z.string(), z.unknown()),
-  queued_at: z.iso.datetime(),
+  queued_at: z.iso.datetime({ offset: true }),
   synced: z.boolean().default(false),
 });
 export type OfflineQueueItem = z.infer<typeof OfflineQueueItem>;
