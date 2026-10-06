@@ -2,3 +2,15 @@ CLAUDE.md
 AGENTS.md
 
 .claude
+
+# env / deps / tooling
+.env
+.env.*
+!.env.example
+node_modules/
+ml/.venv/
+__pycache__/
+*.pyc
+supabase/.temp/
+supabase/.branches/
+.DS_Store
