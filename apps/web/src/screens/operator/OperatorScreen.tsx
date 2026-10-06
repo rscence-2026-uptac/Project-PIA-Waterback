@@ -1,52 +1,52 @@
-// SPEC: 05 — CWD operator dashboard. Readings always go into the offline queue first (wireframe p.9).
+// SPEC: 05 — CWD operator dashboard. Readings are logged per water intake (CWD 2022 WSP review,
+// docs/wsp_findings.md) and always go into the offline queue first (wireframe p.9).
 import { useState, type FormEvent } from "react";
 import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import { OperatorReadingForm } from "../../contracts/spec05";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
-import { OPERATOR, PLANT_INTAKE_ID } from "../../data/mock";
+import { INTAKES, OPERATOR, type IntakeId, type IntakeReading } from "../../data/mock";
 import { formatDay, formatShortTime, formatTime, formatWindow } from "../../lib/time";
+import { db } from "../../offline/db";
 import { useLiveQuery, useOnline } from "../../offline/hooks";
-import { enqueue, latestItem, pendingItems } from "../../offline/queue";
+import { enqueue, pendingItems } from "../../offline/queue";
 import { Button } from "../../ui/Button";
 import { Pill } from "../../ui/Chip";
 import { Icon } from "../../ui/Icon";
 import { StaffTab, StaffTopBar } from "../../ui/StaffTopBar";
 import { RainChart, TurbidityChart } from "./Charts";
 
-const { TURBIDITY_SHUTDOWN_NTU, TURBIDITY_WARNING_NTU, CLARIFIER_CAPACITY_LPS } = WSP_CONSTANTS;
+const { TURBIDITY_SHUTOFF_NTU, TURBIDITY_LIMIT_NTU, CLARIFIER_CAPACITY_LPS } = WSP_CONSTANTS;
 
 type PlantStatus = OperatorReadingForm["plant_status"];
+type Latest = IntakeReading & { logged_at: string };
 
-interface Latest {
-  turbidity_ntu: number;
-  treated_ntu: number;
-  clarifier_inflow_lps: number;
-  reservoir_pct: number;
-  plant_status: PlantStatus;
-  logged_at: string;
-}
+const intakeName = (id: IntakeId) => INTAKES.find((i) => i.intake_id === id)!.name;
+const isPlant = (id: IntakeId) => INTAKES.find((i) => i.intake_id === id)!.plant;
+// WSP p.43: the >= 500 NTU temporary shut-off applies to the Caramayon I source only.
+const shutOffApplies = (id: IntakeId, ntu: number) => id === "caramayon_1" && ntu >= TURBIDITY_SHUTOFF_NTU;
 
-const MOCK_LATEST: Latest = { ...OPERATOR.latest, logged_at: OPERATOR.last_logged_at };
-
-/** The newest reading saved on this device, else the sample reading. */
-function useLatestReading(): Latest {
+/** The newest reading for this intake saved on this device, else the sample reading. */
+function useLatestReading(intake: IntakeId): Latest {
+  const sample: Latest = { ...OPERATOR.latest[intake], logged_at: OPERATOR.last_logged_at };
   return useLiveQuery(
     async () => {
-      const item = await latestItem("reading");
-      if (!item) return MOCK_LATEST;
-      const p = item.payload as Record<string, unknown>;
+      const items = await db.queue.where("kind").equals("reading").sortBy("queued_at");
+      const item = items.filter((i) => i.payload.intake_id === intake).at(-1);
+      if (!item) return sample;
+      const p = item.payload;
+      const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
       return {
         turbidity_ntu: Number(p.turbidity_ntu),
-        treated_ntu: Number(p.treated_turbidity_ntu ?? MOCK_LATEST.treated_ntu),
-        clarifier_inflow_lps: Number(p.clarifier_inflow_lps),
-        reservoir_pct: Number(p.reservoir_pct),
         plant_status: p.plant_status as PlantStatus,
+        treated_ntu: num(p.treated_turbidity_ntu),
+        clarifier_inflow_lps: num(p.clarifier_inflow_lps),
+        reservoir_pct: num(p.reservoir_pct),
         logged_at: item.queued_at,
       };
     },
-    [],
-    MOCK_LATEST,
+    [intake],
+    sample,
   );
 }
 
@@ -59,7 +59,8 @@ function nextHour(): string {
 
 export function OperatorScreen() {
   const { t } = useCopy();
-  const latest = useLatestReading();
+  const [intake, setIntake] = useState<IntakeId>("kulador");
+  const latest = useLatestReading(intake);
   const now = new Date();
 
   return (
@@ -80,13 +81,35 @@ export function OperatorScreen() {
       <main className="mx-auto max-w-[1360px] px-8 pb-16 pt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-[32px] leading-tight tracking-[-0.03em]">
-            {t("operator.title", { day: formatDay(now), time: formatTime(now) })}
+            {t("operator.title", { intake: intakeName(intake), day: formatDay(now), time: formatTime(now) })}
           </h1>
           <Pill className="bg-coral text-ink">
             <Icon name="dropOff" size={16} />
             {t("operator.event_open", { id: OPERATOR.event_id })}
           </Pill>
         </div>
+
+        <fieldset className="mt-4">
+          <legend className="text-[14px] font-bold">{t("operator.intake_label")}</legend>
+          <div className="mt-2 inline-grid grid-cols-2 gap-1.5 rounded-md bg-mist p-1.5 sm:grid-cols-4">
+            {INTAKES.map((option) => (
+              <label
+                key={option.intake_id}
+                className={`press flex min-h-11 cursor-pointer items-center justify-center rounded-sm px-4 font-bold ${intake === option.intake_id ? "bg-tide text-foam" : "bg-foam text-ink"}`}
+              >
+                <input
+                  type="radio"
+                  name="intake"
+                  value={option.intake_id}
+                  checked={intake === option.intake_id}
+                  onChange={() => setIntake(option.intake_id)}
+                  className="sr-only"
+                />
+                {option.name}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <InfoPill icon="gauge" title={t("operator.readings_pill")} sub={t("operator.readings_sub")}>
@@ -99,15 +122,15 @@ export function OperatorScreen() {
 
         <div className="mt-6 flex flex-wrap gap-6">
           <div className="flex min-w-0 flex-[999_1_640px] flex-col gap-6">
-            <MetricTiles latest={latest} />
-            <ChartsPanel />
-            <ReadingForm latest={latest} />
+            <MetricTiles intake={intake} latest={latest} />
+            <ChartsPanel intake={intake} />
+            <ReadingForm key={intake} intake={intake} latest={latest} />
           </div>
           <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
             <DetectorPanel />
             <EarlyWarnings />
             <p className="text-[13px] text-ink-soft">
-              {t("operator.footnote", { warn: TURBIDITY_WARNING_NTU, shut: TURBIDITY_SHUTDOWN_NTU, cap: CLARIFIER_CAPACITY_LPS })}
+              {t("operator.footnote", { limit: TURBIDITY_LIMIT_NTU, shut: TURBIDITY_SHUTOFF_NTU, cap: CLARIFIER_CAPACITY_LPS })}
             </p>
           </aside>
         </div>
@@ -159,61 +182,83 @@ function MetricTile({ label, value, unit, note, badge, wide }: {
   );
 }
 
-function MetricTiles({ latest }: { latest: Latest }) {
+function MetricTiles({ intake, latest }: { intake: IntakeId; latest: Latest }) {
   const { t } = useCopy();
-  const rawOver = latest.turbidity_ntu > TURBIDITY_SHUTDOWN_NTU;
-  const treatedOver = latest.treated_ntu > TURBIDITY_WARNING_NTU;
-  const cutBack = latest.clarifier_inflow_lps < CLARIFIER_CAPACITY_LPS * 0.9;
+  const raw = latest.turbidity_ntu;
+  const shutOff = shutOffApplies(intake, raw);
+  const rawOver = raw > TURBIDITY_LIMIT_NTU;
+  const { treated_ntu: treated, clarifier_inflow_lps: clarifier, reservoir_pct: reservoir } = latest;
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <MetricTile
         label={t("operator.raw")}
-        value={latest.turbidity_ntu}
+        value={raw}
         unit={t("unit.ntu")}
-        badge={rawOver ? t("operator.over_limit") : undefined}
-        note={rawOver
-          ? t("operator.raw_over", { limit: TURBIDITY_SHUTDOWN_NTU, time: formatTime(OPERATOR.raw_over_since) })
-          : t("operator.raw_under", { limit: TURBIDITY_SHUTDOWN_NTU })}
+        badge={shutOff ? t("operator.shutoff") : rawOver ? t("operator.over_limit") : undefined}
+        note={shutOff
+          ? t("operator.raw_shutoff", { limit: TURBIDITY_SHUTOFF_NTU, time: formatTime(OPERATOR.over_since) })
+          : rawOver
+            ? t("operator.raw_over", { limit: TURBIDITY_LIMIT_NTU })
+            : t("operator.raw_under", { limit: TURBIDITY_LIMIT_NTU })}
       />
-      <MetricTile
-        label={t("operator.treated")}
-        value={latest.treated_ntu}
-        unit={t("unit.ntu")}
-        badge={treatedOver ? t("operator.over_limit") : undefined}
-        note={treatedOver
-          ? t("operator.treated_over", { limit: TURBIDITY_WARNING_NTU })
-          : t("operator.treated_under", { limit: TURBIDITY_WARNING_NTU })}
-      />
-      <MetricTile
-        label={t("operator.clarifier")}
-        value={latest.clarifier_inflow_lps}
-        unit={t("unit.lps")}
-        note={cutBack
-          ? t("operator.clarifier_cut", { cap: CLARIFIER_CAPACITY_LPS })
-          : t("operator.clarifier_full", { cap: CLARIFIER_CAPACITY_LPS })}
-      />
-      <MetricTile
-        wide
-        label={t("operator.reservoir")}
-        value={latest.reservoir_pct}
-        unit={t("unit.pct")}
-        note={t("operator.reservoir_trend", { n: OPERATOR.reservoir_falling_per_hour })}
-      />
+      {isPlant(intake) ? (
+        <>
+          {treated !== null && (
+            <MetricTile
+              label={t("operator.treated")}
+              value={treated}
+              unit={t("unit.ntu")}
+              badge={treated > TURBIDITY_LIMIT_NTU ? t("operator.over_limit") : undefined}
+              note={treated > TURBIDITY_LIMIT_NTU
+                ? t("operator.treated_over", { limit: TURBIDITY_LIMIT_NTU })
+                : t("operator.treated_under", { limit: TURBIDITY_LIMIT_NTU })}
+            />
+          )}
+          {clarifier !== null && (
+            <MetricTile
+              label={t("operator.clarifier")}
+              value={clarifier}
+              unit={t("unit.lps")}
+              note={clarifier < CLARIFIER_CAPACITY_LPS * 0.9
+                ? t("operator.clarifier_cut", { cap: CLARIFIER_CAPACITY_LPS })
+                : t("operator.clarifier_full", { cap: CLARIFIER_CAPACITY_LPS })}
+            />
+          )}
+          {reservoir !== null && (
+            <MetricTile
+              wide
+              label={t("operator.reservoir")}
+              value={reservoir}
+              unit={t("unit.pct")}
+              note={t("operator.reservoir_trend", { n: OPERATOR.reservoir_falling_per_hour })}
+            />
+          )}
+        </>
+      ) : (
+        <p className="flex items-center rounded-xl bg-mist px-[22px] py-5 text-[15px] sm:col-span-2">
+          {t("operator.kulador_only")}
+        </p>
+      )}
     </div>
   );
 }
 
-function ChartsPanel() {
+function ChartsPanel({ intake }: { intake: IntakeId }) {
   const { t } = useCopy();
   return (
     <section className="rounded-xl border-[1.5px] border-haze p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-[20px]">{t("operator.chart_turbidity")}</h2>
+        <h2 className="font-display text-[20px]">{t("operator.chart_turbidity", { intake: intakeName(intake) })}</h2>
         <span className="text-[13px] text-ink-soft">{t("operator.chart_units")}</span>
       </div>
       <div className="mt-3">
-        <TurbidityChart series={OPERATOR.turbidity_series} end={OPERATOR.series_end} limit={TURBIDITY_SHUTDOWN_NTU} />
+        <TurbidityChart
+          label={t("operator.chart_turbidity", { intake: intakeName(intake) })}
+          series={OPERATOR.turbidity_series[intake]}
+          end={OPERATOR.series_end}
+          shutOff={intake === "caramayon_1" ? TURBIDITY_SHUTOFF_NTU : undefined}
+        />
       </div>
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-display text-[17px]">{t("operator.chart_rain")}</h3>
@@ -234,11 +279,12 @@ function ChartsPanel() {
 
 type FieldName = "turbidity_ntu" | "treated_ntu" | "clarifier_inflow_lps" | "reservoir_pct";
 
-const FIELDS: { name: FieldName; label: CopyKeyName; error: CopyKeyName }[] = [
-  { name: "turbidity_ntu", label: "operator.field_raw", error: "operator.err_number" },
-  { name: "treated_ntu", label: "operator.field_treated", error: "operator.err_number" },
-  { name: "clarifier_inflow_lps", label: "operator.field_clarifier", error: "operator.err_number" },
-  { name: "reservoir_pct", label: "operator.field_reservoir", error: "operator.err_pct" },
+// Treated turbidity, clarifier flow and reservoir exist only at the Kulador plant (spec 05: nullable).
+const FIELDS: { name: FieldName; label: CopyKeyName; error: CopyKeyName; plantOnly: boolean }[] = [
+  { name: "turbidity_ntu", label: "operator.field_raw", error: "operator.err_number", plantOnly: false },
+  { name: "treated_ntu", label: "operator.field_treated", error: "operator.err_number", plantOnly: true },
+  { name: "clarifier_inflow_lps", label: "operator.field_clarifier", error: "operator.err_number", plantOnly: true },
+  { name: "reservoir_pct", label: "operator.field_reservoir", error: "operator.err_pct", plantOnly: true },
 ];
 
 const PLANT_OPTIONS: { value: PlantStatus; label: CopyKeyName }[] = [
@@ -247,40 +293,45 @@ const PLANT_OPTIONS: { value: PlantStatus; label: CopyKeyName }[] = [
   { value: "shutdown", label: "plant.shutdown" },
 ];
 
-function ReadingForm({ latest }: { latest: Latest }) {
+const asText = (v: number | null) => (v === null ? "" : String(v));
+
+function ReadingForm({ intake, latest }: { intake: IntakeId; latest: Latest }) {
   const { t } = useCopy();
   const online = useOnline();
+  const plant = isPlant(intake);
+  const fields = FIELDS.filter((f) => plant || !f.plantOnly);
   const pending = useLiveQuery(() => pendingItems("reading").then((items) => items.length), [], 0);
+  const sample = OPERATOR.latest[intake];
   const [values, setValues] = useState<Record<FieldName, string>>({
-    turbidity_ntu: String(OPERATOR.latest.turbidity_ntu),
-    treated_ntu: String(OPERATOR.latest.treated_ntu),
-    clarifier_inflow_lps: String(OPERATOR.latest.clarifier_inflow_lps),
-    reservoir_pct: String(OPERATOR.latest.reservoir_pct),
+    turbidity_ntu: String(sample.turbidity_ntu),
+    treated_ntu: asText(sample.treated_ntu),
+    clarifier_inflow_lps: asText(sample.clarifier_inflow_lps),
+    reservoir_pct: asText(sample.reservoir_pct),
   });
-  const [plantStatus, setPlantStatus] = useState<PlantStatus>(OPERATOR.latest.plant_status);
+  const [plantStatus, setPlantStatus] = useState<PlantStatus>(sample.plant_status);
   const [errors, setErrors] = useState<Partial<Record<FieldName, boolean>>>({});
   const [saved, setSaved] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const num = (name: FieldName) => (values[name].trim() === "" ? NaN : Number(values[name]));
-    const treated = num("treated_ntu");
+    const treated = plant ? num("treated_ntu") : null;
 
-    // Spec 05 contract. Treated turbidity is on the wireframe but not in the contract (flagged),
-    // so it rides along in the queue payload without being validated by the spec schema.
+    // Spec 05 contract. Treated turbidity is on the wireframe but not in the contract (flagged,
+    // docs/dev-b-handoff.md #2), so it rides along in the queue payload unvalidated by the schema.
     const parsed = OperatorReadingForm.safeParse({
-      barangay_id: PLANT_INTAKE_ID,
+      intake_id: intake,
       turbidity_ntu: num("turbidity_ntu"),
       plant_status: plantStatus,
-      reservoir_pct: num("reservoir_pct"),
-      clarifier_inflow_lps: num("clarifier_inflow_lps"),
+      reservoir_pct: plant ? num("reservoir_pct") : null,
+      clarifier_inflow_lps: plant ? num("clarifier_inflow_lps") : null,
     });
 
     const nextErrors: Partial<Record<FieldName, boolean>> = {};
     if (!parsed.success) {
       for (const issue of parsed.error.issues) nextErrors[issue.path[0] as FieldName] = true;
     }
-    if (!(treated >= 0)) nextErrors.treated_ntu = true;
+    if (treated !== null && !(treated >= 0)) nextErrors.treated_ntu = true;
     setErrors(nextErrors);
     if (!parsed.success || Object.keys(nextErrors).length > 0) {
       setSaved(false);
@@ -300,13 +351,15 @@ function ReadingForm({ latest }: { latest: Latest }) {
   return (
     <section className="rounded-xl border-[1.5px] border-haze p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-[20px]">{t("operator.log_title", { time: formatTime(nextHour()) })}</h2>
+        <h2 className="font-display text-[20px]">
+          {t("operator.log_title", { time: formatTime(nextHour()), intake: intakeName(intake) })}
+        </h2>
         <span className="text-[13px] text-ink-soft">{t("operator.last_logged", { time: formatTime(latest.logged_at) })}</span>
       </div>
 
       <form onSubmit={onSubmit} noValidate className="mt-4">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {FIELDS.map((field) => (
+          {fields.map((field) => (
             <label key={field.name} className="flex flex-col gap-1.5">
               <span className="text-[14px] font-bold">{t(field.label)}</span>
               <input
@@ -323,6 +376,7 @@ function ReadingForm({ latest }: { latest: Latest }) {
             </label>
           ))}
         </div>
+        {!plant && <p className="mt-3 text-[14px] text-ink-soft">{t("operator.kulador_only")}</p>}
 
         <label className="mt-4 flex flex-col gap-1.5">
           <span className="text-[14px] font-bold">{t("operator.field_status")}</span>
@@ -364,7 +418,7 @@ function DetectorPanel() {
   const { t } = useCopy();
   const d = OPERATOR.detector;
   const signals = [
-    t("detector.sig_raw", { limit: TURBIDITY_SHUTDOWN_NTU, time: formatTime(OPERATOR.raw_over_since) }),
+    t("detector.sig_raw", { limit: TURBIDITY_SHUTOFF_NTU, time: formatTime(OPERATOR.over_since) }),
     t("detector.sig_rain", { mm: d.rain_mm, hours: d.rain_hours }),
     t("detector.sig_clarifier", { from: d.clarifier_from, to: d.clarifier_to }),
   ];

@@ -10,6 +10,7 @@ import type { BarangayStatusView } from "../contracts/spec05";
 import type { RankedSource } from "../contracts/spec04";
 import { WSP_CONSTANTS } from "../contracts/wsp";
 import { todayAt } from "../lib/time";
+import { CATBALOGAN_BARANGAYS } from "./barangays";
 
 export type Cause = "turbidity" | "drought" | "repair";
 export type Safety = "safe" | "boil" | "washing";
@@ -23,7 +24,9 @@ export type LiveStatus =
 
 export interface Barangay {
   barangay_id: string;
-  name: string; // "Canlapwas"
+  name: string; // short, for screens: "Poblacion 5", "Canlapwas"
+  official: string; // PSGC: "Poblacion 5 (Barangay 5)", "Canlapwas (Poblacion)"
+  served: boolean; // one of the 26 CWD serves (WSP p.8)
 }
 
 export interface DisruptionDetail {
@@ -86,15 +89,14 @@ export interface BarangaySnapshot {
   captain: CaptainDay;
 }
 
-// Barangays named in the wireframes (p.11, "Hours without piped water").
-export const BARANGAYS: Barangay[] = [
-  { barangay_id: "canlapwas", name: "Canlapwas" },
-  { barangay_id: "mercedes", name: "Mercedes" },
-  { barangay_id: "guinsorongan", name: "Guinsorongan" },
-  { barangay_id: "san-andres", name: "San Andres" },
-  { barangay_id: "payao", name: "Payao" },
-  { barangay_id: "silanga", name: "Silanga" },
-];
+// Every Catbalogan barangay (data/barangays.ts, official PSGC names). `name` is the short form
+// used on screens ("Poblacion 5", "Canlapwas"); `official` is the full PSGC name for the picker.
+export const BARANGAYS: Barangay[] = CATBALOGAN_BARANGAYS.map((brgy) => ({
+  barangay_id: brgy.barangay_id,
+  name: brgy.name.replace(/\s*\(.*\)$/, ""),
+  official: brgy.name,
+  served: brgy.served,
+}));
 
 const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
 
@@ -181,40 +183,71 @@ const TURBIDITY_OUTAGE: DisruptionDetail = {
   next_update_at: todayAt(10), heads_up_from: null,
 };
 
-// One scenario per barangay, so every water state can be demoed.
-const SCENARIOS: Record<string, { signal_level: number; detail: DisruptionDetail }> = {
-  canlapwas: { signal_level: 4, detail: TURBIDITY_OUTAGE },
-  mercedes: { signal_level: 3, detail: TURBIDITY_OUTAGE },
-  guinsorongan: {
-    signal_level: 2,
-    detail: { ...NO_DISRUPTION, disruption_id: EVENT_DISRUPTION_ID, cause: "turbidity", heads_up_from: todayAt(2, 0, 1) },
-  },
-  "san-andres": {
-    signal_level: 3,
-    detail: {
-      disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
-      cause: "drought", started_at: todayAt(6), updated_at: todayAt(8),
-      window_start: todayAt(17), window_end: todayAt(20), likely_at: todayAt(18),
-      next_update_at: todayAt(10), heads_up_from: null,
-    },
-  },
-  // Water's back (wireframe p.6): restored at 5:05 PM, 25 minutes before the likely time.
-  payao: { signal_level: 0, detail: { ...TURBIDITY_OUTAGE, updated_at: todayAt(17, 5), restored_at: todayAt(17, 5) } },
-  silanga: { signal_level: 0, detail: NO_DISRUPTION },
+const HEADS_UP: DisruptionDetail = {
+  ...NO_DISRUPTION, disruption_id: EVENT_DISRUPTION_ID, cause: "turbidity", heads_up_from: todayAt(2, 0, 1),
+};
+
+const LOW_RIVER: DisruptionDetail = {
+  disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
+  cause: "drought", started_at: todayAt(6), updated_at: todayAt(8),
+  window_start: todayAt(17), window_end: todayAt(20), likely_at: todayAt(18),
+  next_update_at: todayAt(10), heads_up_from: null,
+};
+
+// The predictor is system-wide (spec 02, scope: "system"): every intake feeds Kulador and the
+// network is blended (WSP pp.12, 15), so one signal level reaches all 26 barangays (spec 03).
+// Change DEMO_SYSTEM to demo another state; every barangay follows it.
+type SystemScenario = "turbidity_outage" | "heads_up" | "low_river" | "normal";
+const DEMO_SYSTEM: SystemScenario = "turbidity_outage";
+
+const SYSTEM: Record<SystemScenario, { signal_level: number; detail: DisruptionDetail }> = {
+  turbidity_outage: { signal_level: 4, detail: TURBIDITY_OUTAGE },
+  heads_up: { signal_level: 2, detail: HEADS_UP },
+  low_river: { signal_level: 3, detail: LOW_RIVER },
+  normal: { signal_level: 0, detail: NO_DISRUPTION },
+};
+
+// Per-barangay differences come only after allocation: a barangay whose residents confirmed
+// water is back (spec 06) shows the resolved state. Payao demos "Water's back" (wireframe p.6).
+const RESOLVED: Record<string, DisruptionDetail> = {
+  payao: { ...TURBIDITY_OUTAGE, updated_at: todayAt(17, 5), restored_at: todayAt(17, 5) },
 };
 
 /** MOCK: stands in for Dev A's status endpoint. */
 export function mockSnapshot(barangayId: string): BarangaySnapshot | null {
   const barangay = BARANGAYS.find((b) => b.barangay_id === barangayId);
-  const scenario = SCENARIOS[barangayId];
-  if (!barangay || !scenario) return null;
+  if (!barangay) return null;
+  const system = SYSTEM[DEMO_SYSTEM];
+  const resolved = DEMO_SYSTEM === "turbidity_outage" ? RESOLVED[barangayId] : undefined;
   return {
-    status: { barangay_id: barangayId, signal_level: scenario.signal_level, last_synced_at: new Date().toISOString() },
-    detail: scenario.detail,
+    status: {
+      barangay_id: barangayId,
+      signal_level: resolved ? 0 : system.signal_level,
+      last_synced_at: new Date().toISOString(),
+    },
+    detail: resolved ?? system.detail,
     sources: sourcesFor(barangay.name),
     storage: STORAGE,
     captain: captainFor(barangay.name),
   };
+}
+
+// The four intakes an operator logs (spec 05 OperatorReadingForm.intake_id; supabase/seed/intakes.sql,
+// CWD 2022 WSP pp.11-12, 15). Reservoir, clarifier and treated turbidity exist only at Kulador.
+export type IntakeId = "kulador" | "masacpasac" | "caramayon_1" | "caramayon_2";
+export const INTAKES: { intake_id: IntakeId; name: string; plant: boolean }[] = [
+  { intake_id: "kulador", name: "Kulador (Antiao River)", plant: true },
+  { intake_id: "masacpasac", name: "Masacpasac", plant: false },
+  { intake_id: "caramayon_1", name: "Caramayon I", plant: false },
+  { intake_id: "caramayon_2", name: "Caramayon II", plant: false },
+];
+
+export interface IntakeReading {
+  turbidity_ntu: number;
+  plant_status: "normal" | "degraded" | "shutdown";
+  treated_ntu: number | null;
+  clarifier_inflow_lps: number | null;
+  reservoir_pct: number | null;
 }
 
 // MOCK: operator dashboard (spec 01 seed data + spec 02 detector output, once built).
@@ -223,15 +256,25 @@ export const OPERATOR = {
   shift_hours: "5 AM–1 PM",
   event_id: "TP-2026-031",
   last_logged_at: todayAt(7),
-  latest: { turbidity_ntu: 620, treated_ntu: 3.8, clarifier_inflow_lps: 31, reservoir_pct: 58, plant_status: "degraded" as const },
-  raw_over_since: todayAt(2, 40),
+  latest: {
+    kulador: { turbidity_ntu: 620, plant_status: "degraded", treated_ntu: 3.8, clarifier_inflow_lps: 31, reservoir_pct: 58 },
+    masacpasac: { turbidity_ntu: 14, plant_status: "normal", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
+    caramayon_1: { turbidity_ntu: 540, plant_status: "shutdown", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
+    caramayon_2: { turbidity_ntu: 38, plant_status: "normal", treated_ntu: null, clarifier_inflow_lps: null, reservoir_pct: null },
+  } satisfies Record<IntakeId, IntakeReading>,
+  over_since: todayAt(2, 40),
   reservoir_falling_per_hour: 4,
   rain_updated_at: todayAt(8),
   rain_since: todayAt(22, 0, -1),
   rain_total_mm: 39,
   dry_spell_days: 0,
-  // Hourly raw turbidity, 8 AM yesterday → 8 AM today (25 points).
-  turbidity_series: [18, 17, 19, 18, 20, 19, 18, 17, 19, 20, 22, 21, 24, 30, 45, 95, 180, 330, 470, 590, 640, 655, 650, 635, 620],
+  // Hourly raw turbidity per intake, 8 AM yesterday → 8 AM today (25 points).
+  turbidity_series: {
+    kulador: [18, 17, 19, 18, 20, 19, 18, 17, 19, 20, 22, 21, 24, 30, 45, 95, 180, 330, 470, 590, 640, 655, 650, 635, 620],
+    masacpasac: [4, 4, 5, 4, 4, 5, 4, 4, 5, 5, 6, 6, 7, 8, 10, 12, 14, 15, 16, 16, 15, 15, 14, 14, 14],
+    caramayon_1: [12, 11, 12, 13, 12, 12, 11, 12, 13, 14, 15, 16, 20, 28, 60, 140, 260, 410, 520, 560, 575, 570, 560, 550, 540],
+    caramayon_2: [6, 6, 7, 6, 6, 7, 6, 6, 7, 8, 9, 10, 12, 15, 20, 26, 32, 36, 40, 42, 41, 40, 39, 38, 38],
+  } satisfies Record<IntakeId, number[]>,
   // Hourly rainfall in mm over the same 24 hours.
   rain_series: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 12, 10, 8, 4, 1, 0, 0, 0, 0],
   series_end: todayAt(8),
@@ -241,7 +284,7 @@ export const OPERATOR = {
     confirmed_at: todayAt(5, 48),
     rain_mm: 39,
     rain_hours: 6,
-    clarifier_from: 46,
+    clarifier_from: 46.3,
     clarifier_to: 31,
     low_source: { n: 0, total: 3 },
     repair: { n: 0, total: 2 },
@@ -257,7 +300,3 @@ export const OPERATOR = {
     { date: "20 May", cause: "low_source" as const, notice: "3 days" },
   ],
 };
-
-// MOCK: spec 05 wants a barangay_id on every reading, but the wireframe logs plant-wide
-// readings at the Antiao intake. Flagged for Dev A; until then readings use this id.
-export const PLANT_INTAKE_ID = "antiao-intake";

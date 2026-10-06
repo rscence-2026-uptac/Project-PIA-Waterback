@@ -3,7 +3,7 @@ import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useCopy } from "../../copy/i18n";
 import { useBarangay } from "../../lib/barangay";
 import { formatTime } from "../../lib/time";
-import { DropMark } from "../../ui/Drop";
+import { Logo } from "../../ui/Logo";
 import { Icon, type IconName } from "../../ui/Icon";
 
 export function ResidentLayout() {
@@ -50,16 +50,12 @@ function BottomBar() {
   );
 }
 
-/** Wordmark + location pill. Tapping the pill changes barangay or language. */
+/** Logo + location pill. Tapping the pill changes barangay or language. */
 export function ResidentHeader() {
-  const { t } = useCopy();
   const barangay = useBarangay();
   return (
     <header className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2">
-        <DropMark size={24} />
-        <span className="font-display text-[20px] text-ink">{t("app.name")}</span>
-      </span>
+      <Logo height={28} />
       {barangay && (
         <Link
           to="/settings"

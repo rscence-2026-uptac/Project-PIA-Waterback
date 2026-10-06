@@ -15,7 +15,9 @@ import { LguLayout } from "./LguLayout";
 const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-function households(row: AffectedBarangay) {
+/** Household total, or null when spec 03 says coverage is unknown (never a guessed number). */
+function households(row: AffectedBarangay): number | null {
+  if (row.piped_households_affected === null || row.unpiped_households_affected === null) return null;
   return row.piped_households_affected + row.unpiped_households_affected;
 }
 
@@ -58,7 +60,7 @@ export function AllocationScreen() {
   }
 
   const totals = {
-    households: AFFECTED.reduce((sum, r) => sum + households(r), 0),
+    households: AFFECTED.reduce((sum, r) => sum + (households(r) ?? 0), 0),
     noBackup: AFFECTED.reduce((sum, r) => sum + r.no_backup_households, 0),
     vulnerable: AFFECTED.reduce((sum, r) => sum + r.vulnerable_households, 0),
     health: AFFECTED.filter((r) => r.facilities.includes("health_station")).length,
@@ -233,12 +235,14 @@ function PriorityRow({ row, rank, first, last, onUp, onDown }: {
           {row.coverage_confidence === "estimate" && row.no_backup_households > 0 && (
             <span className="ml-1.5 text-[13px] font-bold">({t("lgu.estimate")})</span>
           )}
-          {row.coverage_confidence === "unknown" && (
-            <span className="ml-1.5 text-[13px] font-bold">· {t("lgu.coverage_unknown")}</span>
+          {row.service_level === "level_i" && (
+            <span className="ml-1.5 text-[13px] font-bold">· {t("lgu.level_i")}</span>
           )}
         </p>
       </div>
-      <span className="numeral shrink-0 text-[24px]">{t("lgu.households", { n: households(row).toLocaleString("en-US") })}</span>
+      <span className="numeral shrink-0 text-[24px]">
+        {households(row) === null ? t("lgu.coverage_unknown") : t("lgu.households", { n: households(row)!.toLocaleString("en-US") })}
+      </span>
       <div className="flex shrink-0 gap-2">
         <button type="button" onClick={onUp} disabled={first} aria-label={t("lgu.move_up", { name: row.name })}
           className="press flex size-11 items-center justify-center rounded-sm bg-mist disabled:opacity-40">

@@ -57,12 +57,3 @@ export function DropGauge({ look, width = 120, className = "" }: {
     </svg>
   );
 }
-
-/** The small solid drop used as the wordmark and on staff top bars. */
-export function DropMark({ size = 22, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg viewBox="0 0 160 210" width={(size * 160) / 210} height={size} aria-hidden="true" className={className}>
-      <path d={DROP_PATH} fill="var(--color-water)" />
-    </svg>
-  );
-}

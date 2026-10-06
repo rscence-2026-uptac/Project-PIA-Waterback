@@ -1,8 +1,8 @@
-// Dashboard top bar: drop wordmark, organisation, text tabs (DESIGN.md, Navigation).
+// Dashboard top bar: Project PIA logo, name over organisation, text tabs (DESIGN.md, Navigation).
 import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { useCopy } from "../copy/i18n";
-import { DropMark } from "./Drop";
+import { Logo } from "./Logo";
 
 export function StaffTopBar({ org, tabs, right }: { org: string; tabs?: ReactNode; right?: ReactNode }) {
   const { t } = useCopy();
@@ -10,7 +10,7 @@ export function StaffTopBar({ org, tabs, right }: { org: string; tabs?: ReactNod
     <header className="border-b border-haze bg-foam">
       <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-x-6 gap-y-2 px-8 py-3">
         <span className="flex items-center gap-2.5">
-          <DropMark size={30} />
+          <Logo height={38} showName={false} />
           <span className="flex flex-col leading-tight">
             <span className="font-display text-[18px]">{t("app.name")}</span>
             <span className="text-[13px] text-ink-soft">{org}</span>

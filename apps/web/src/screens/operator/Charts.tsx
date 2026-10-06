@@ -19,7 +19,13 @@ function hourLabels(end: string, count: number) {
     .map((i) => ({ i, label: formatShortTime(new Date(last - (count - 1 - i) * 3600_000)) }));
 }
 
-export function TurbidityChart({ series, end, limit }: { series: number[]; end: string; limit: number }) {
+/** `shutOff` draws the source shut-off line (WSP p.43: Caramayon I only). */
+export function TurbidityChart({ series, end, label, shutOff }: {
+  series: number[];
+  end: string;
+  label: string;
+  shutOff?: number;
+}) {
   const { t } = useCopy();
   const H = 190;
   const PAD_T = 14;
@@ -32,17 +38,21 @@ export function TurbidityChart({ series, end, limit }: { series: number[]; end: 
   const lastV = series[series.length - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={t("operator.chart_turbidity")}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={label}>
       {[0, 200, 400, 600, 800].map((tick) => (
         <g key={tick}>
           <line x1={PAD_L} x2={W - PAD_R} y1={y(tick)} y2={y(tick)} stroke="var(--color-mist)" strokeWidth="1.5" />
           <text x={PAD_L - 8} y={y(tick) + 4} textAnchor="end" fontSize="11" fill="var(--color-ink-soft)">{tick}</text>
         </g>
       ))}
-      <line x1={PAD_L} x2={W - PAD_R} y1={y(limit)} y2={y(limit)} stroke="var(--color-coral-deep)" strokeWidth="1.5" strokeDasharray="6 5" />
-      <text x={PAD_L + 6} y={y(limit) - 6} fontSize="11" fontWeight="700" fill="var(--color-coral-deep)">
-        {t("operator.plant_limit", { limit })}
-      </text>
+      {shutOff !== undefined && (
+        <>
+          <line x1={PAD_L} x2={W - PAD_R} y1={y(shutOff)} y2={y(shutOff)} stroke="var(--color-coral-deep)" strokeWidth="1.5" strokeDasharray="6 5" />
+          <text x={PAD_L + 6} y={y(shutOff) - 6} fontSize="11" fontWeight="700" fill="var(--color-coral-deep)">
+            {t("operator.plant_limit", { limit: shutOff })}
+          </text>
+        </>
+      )}
       <polyline points={points} fill="none" stroke="var(--color-water)" strokeWidth="2.5" strokeLinejoin="round" />
       <circle cx={lastX} cy={y(lastV)} r="4.5" fill="var(--color-water)" />
       <text x={lastX} y={y(lastV) - 12} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--color-ink)">

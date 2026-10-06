@@ -3,11 +3,11 @@
 import { z } from "zod";
 
 export const OperatorReadingForm = z.object({
-  barangay_id: z.string(),
+  intake_id: z.enum(["kulador", "masacpasac", "caramayon_1", "caramayon_2"]), // operator picks Kulador, Masacpasac, Caramayon I or Caramayon II
   turbidity_ntu: z.number().nonnegative(),
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
-  reservoir_pct: z.number().min(0).max(100),
-  clarifier_inflow_lps: z.number().nonnegative(),
+  reservoir_pct: z.number().min(0).max(100).nullable(),
+  clarifier_inflow_lps: z.number().nonnegative().nullable(),
 });
 export type OperatorReadingForm = z.infer<typeof OperatorReadingForm>;
 

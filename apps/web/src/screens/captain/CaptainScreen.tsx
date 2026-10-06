@@ -10,7 +10,7 @@ import { formatTime, formatWindow } from "../../lib/time";
 import { waterState } from "../../lib/waterState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { StatusChip } from "../../ui/Chip";
-import { DropMark } from "../../ui/Drop";
+import { Logo } from "../../ui/Logo";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { safetyText } from "../../copy/labels";
@@ -27,7 +27,7 @@ export function CaptainScreen() {
     <div className="mx-auto min-h-dvh max-w-[430px] bg-foam px-5 pb-16 pt-[max(16px,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between">
         <p className="text-[15px] text-ink-soft">{t("captain.role", { barangay: barangay.name })}</p>
-        <DropMark size={24} />
+        <Logo height={30} showName={false} />
       </div>
       <ScreenStateView state={status.state} onRetry={status.retry}>
         {() =>

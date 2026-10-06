@@ -6,19 +6,51 @@ Last updated: 2026-10-06 · branch `des`
 
 ## Action needed from Dev A
 
-### 1. Plant-wide readings can't satisfy the `readings.barangay_id` FK — decide
-- The operator logs one reading for the **Antiao intake** (wireframe p.9), not per barangay. Spec 05's `OperatorReadingForm` still needs `barangay_id`, and `readings.barangay_id` is a FK to `barangays`.
-- **For now:** the app sends `barangay_id: "antiao-intake"` (`apps/web/src/data/mock.ts`, `PLANT_INTAKE_ID`). **That insert will fail the FK.**
-- **Options:**
-  - (a) Seed an `antiao-intake` row (but it isn't a barangay).
-  - (b) Make `readings.barangay_id` nullable and add `intake_id`.
-  - (c) Fan one reading out to every barangay the intake serves.
-- **Dev B leans (b).** Whichever you pick, spec 05's contract changes too, so tell Dev B.
+### 1. ~~Plant-wide readings vs. the `readings.barangay_id` FK~~ — resolved by your WSP change
+- Done in `1b396e2` (`origin/backend`): readings are per intake (`intake_id`).
+- The app now follows spec 05 exactly. The operator picks Kulador, Masacpasac, Caramayon I or Caramayon II, and the reservoir and clarifier fields appear only for Kulador (sent as `null` otherwise).
+- The `antiao-intake` placeholder is gone.
+- `des` has your spec 05 copied verbatim, so the merge shouldn't conflict.
 
 ### 2. Treated turbidity isn't in the contract — add a column or drop it
-- The operator form (wireframe p.9) has **Treated turbidity (NTU)**, checked against the 5 NTU WSP limit.
-- It's queued as `payload.treated_turbidity_ntu` but isn't in `Reading` / `readings`.
-- **Ask:** add `treated_turbidity_ntu numeric check (>= 0)` to `readings` and `Reading`, or say to drop the field.
+- The operator form (wireframe p.9) has **Treated turbidity (NTU)**, checked against `TURBIDITY_LIMIT_NTU` (5).
+- Per the WSP it only exists at Kulador, so the app shows it only for Kulador and queues it as `payload.treated_turbidity_ntu`. It's `null` for the other intakes.
+- It isn't in `Reading` / `readings`.
+- **Ask:** add `treated_turbidity_ntu numeric check (>= 0)`, nullable like reservoir/clarifier, or say to drop the field.
+
+### 2a. Barangay names: fact-check against the official PSGC list (new)
+I checked `supabase/seed/barangays.sql` against the official PSA PSGC names for Catbalogan City (57 barangays), via [PhilAtlas](https://www.philatlas.com/visayas/r08/samar/catbalogan.html), on 2026-10-06. The PSA page itself ([psa.gov.ph](https://psa.gov.ph/classification/psgc/barangays/0806005000)) blocks automated reads, so double-check it there.
+
+These seed names differ from the official ones:
+
+| Seed (`name`) | Official PSGC name | Seed id (kept) |
+|---|---|---|
+| Poblacion 1 … Poblacion 13 | Poblacion 1 (Barangay 1) … Poblacion 13 (Barangay 13) | `poblacion-01` … `poblacion-13` |
+| Canlapwas | Canlapwas (Poblacion) | `canlapwas` |
+| Muñoz | Muñoz (Poblacion 14) | `munoz` |
+| Guindapunan | **Guindaponan** | `guindapunan` |
+| Bunu-anan | **Bunuanan** | `bunu-anan` |
+| Darahuway Guti | **Darahuway Gote** | `darahuway-guti` |
+| Darahuway Dako | **Darahuway Daco** | `darahuway-dako` |
+
+- The WSP spellings may be local usage, so the app keeps them as **search aliases**. The app shows the official name and keeps your ids, so nothing breaks.
+- **Ask:** update `name` in the seed to the official spelling, or tell Dev B which one you want shown.
+- Silanga **is** a Catbalogan barangay; it's just not one of the 26 CWD serves.
+
+### 2b. Onboarding now covers all 57 Catbalogan barangays — what do unserved ones see? (new)
+- The resident onboarding is now a **searchable dropdown** instead of a 26-row scroll list. It's limited to Catbalogan City for now.
+- It matches official names, numbers ("5" finds Poblacion 5 / Barangay 5) and old spellings ("Munoz", "Darahuway Dako").
+- It lists all **57** barangays (`apps/web/src/data/barangays.ts`, with a `served` flag), not just the 26 CWD serves.
+- The other 31 are outside the piped network (spec 03 `service_level: "unserved"`). For now they get the same system-wide status and backup-source plan as everyone else.
+- **Ask:** what status should an unserved barangay get from the backend? Options:
+  - (a) Same system signal, since their backup sources get busier too.
+  - (b) A separate "not on the piped network" state.
+  - (c) Leave them out of status entirely.
+
+### 2c. `AffectedArea` in shared-types doesn't match spec 03 (new)
+- Spec 03 makes `piped_households_affected` / `unpiped_households_affected` **nullable**, because the WSP has no household counts.
+- `packages/shared-types/src/schemas/affected-area.ts` still has them required.
+- The app follows the spec: a barangay with null counts shows "coverage unknown" on the LGU screen. Maulong is the sample.
 
 ### 3. Status data the screens show that no table holds yet
 The resident, captain and LGU screens need these per disruption. `disruptions` / `NotificationPayload` don't have them yet (`expected_duration_hint` is only a string).
@@ -76,7 +108,16 @@ No spec defines it. The app uses `apps/web/src/lib/waterState.ts`:
 ### 8. Officer identity
 `officer_id` is a mock (`mock-officer-1`, shown as "[Officer name]" like the wireframe) until the LGU seed accounts / Supabase Auth exist. Tell Dev B the auth approach and the screen will read the signed-in officer.
 
+With the predictor now system-wide (`scope: "system"`), every served barangay gets the same level. Per-barangay differences only come after allocation. For example, a barangay whose residents confirmed water is back shows "Water's back".
+
 ## Done on the Dev B side (FYI, no action)
+
+- **Aligned with your CWD 2022 WSP review** (`1b396e2`, `docs/wsp_findings.md`):
+  - **Spec 05 / intakes:** spec 05 is copied verbatim; operator readings are per intake, as in item 1.
+  - **Constants:** the app now uses `TURBIDITY_LIMIT_NTU` (5) and `TURBIDITY_SHUTOFF_NTU` (500), with the clarifier at 46.3 L/s. `TURBIDITY_WARNING_NTU` and `TURBIDITY_SHUTDOWN_NTU` are gone. The page citations are in the operator footnote.
+  - **500 NTU shut-off:** shown only for **Caramayon I**, as a source shut-off (badge, chart line, detector signal). Kulador above 5 NTU shows "treat through the clarifier".
+  - **Barangays:** the picker lists your 26 seeded barangays with the same ids. Silanga, which isn't a CWD barangay, is gone from the sample data; Maulong is the "coverage unknown" example, and Payao is marked Level I.
+  - **System-wide predictor:** sample status uses one system-wide scenario for all barangays (`DEMO_SYSTEM` in `apps/web/src/data/mock.ts`). Payao stays "Water's back" as the post-allocation example.
 
 - **Renamed to PIA WaterBack** in the app, the PWA manifest (home-screen name "WaterBack"), `DESIGN.md`, `.impeccable/design.json`, the concept doc and the code-structure docs.
   - The wireframes PDF still says Tubig Patas.

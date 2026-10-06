@@ -16,7 +16,7 @@ export default defineConfig({
     // SPEC: 05 — installable, offline-first PWA.
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'PIA WaterBack',
         short_name: 'WaterBack',

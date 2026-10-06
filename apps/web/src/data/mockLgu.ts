@@ -33,11 +33,17 @@ export interface AffectedBarangay extends AffectedArea {
   reported_not_restored: boolean; // a ResidentConfirmation with restored = false came in
 }
 
+// The predictor is system-wide (spec 02), so every affected barangay carries the same signal level.
+// Zones aren't readable from the WSP map yet (seed has zone = null), so low_pressure_zone is false.
 function row(
   suggested_rank: number,
-  fields: Omit<AffectedBarangay, "suggested_rank" | "disruption_id" | "signal_level"> & { signal_level?: number },
+  fields: Omit<AffectedBarangay, "suggested_rank" | "disruption_id" | "signal_level" | "zone" | "service_level" | "low_pressure_zone">
+    & Partial<Pick<AffectedBarangay, "service_level">>,
 ): AffectedBarangay {
-  return { signal_level: 4, ...fields, suggested_rank, disruption_id: EVENT_DISRUPTION_ID };
+  return {
+    signal_level: 4, zone: null, service_level: "level_iii", low_pressure_zone: false,
+    ...fields, suggested_rank, disruption_id: EVENT_DISRUPTION_ID,
+  };
 }
 
 // Suggested order: need first (facilities, elderly/PWD), then households with no backup in 30 min.
@@ -62,14 +68,16 @@ export const AFFECTED: AffectedBarangay[] = [
     piped_households_affected: 520, unpiped_households_affected: 40, coverage_confidence: "estimate",
     vulnerable_flag: true, vulnerable_households: 22, no_backup_households: 14, reported_not_restored: false,
   }),
+  // Level I: communal points only, so every household counts as unpiped (spec 03 equity layer).
   row(5, {
-    barangay_id: "payao", name: "Payao", facilities: [], signal_level: 3,
-    piped_households_affected: 360, unpiped_households_affected: 30, coverage_confidence: "estimate",
+    barangay_id: "payao", name: "Payao", facilities: [], service_level: "level_i",
+    piped_households_affected: 0, unpiped_households_affected: 390, coverage_confidence: "estimate",
     vulnerable_flag: true, vulnerable_households: 18, no_backup_households: 0, reported_not_restored: false,
   }),
+  // No household data: spec 03 says show "coverage unknown", never a guessed number.
   row(6, {
-    barangay_id: "silanga", name: "Silanga", facilities: [], signal_level: 2,
-    piped_households_affected: 340, unpiped_households_affected: 0, coverage_confidence: "unknown",
+    barangay_id: "maulong", name: "Maulong", facilities: [],
+    piped_households_affected: null, unpiped_households_affected: null, coverage_confidence: "unknown",
     vulnerable_flag: false, vulnerable_households: 0, no_backup_households: 0, reported_not_restored: false,
   }),
 ];
@@ -117,7 +125,7 @@ export const CLOSED_EVENT = {
     { name: "Guinsorongan", hours: 28 },
     { name: "San Andres", hours: 22 },
     { name: "Payao", hours: 17 },
-    { name: "Silanga", hours: 12 },
+    { name: "Maulong", hours: 12 },
   ],
   carry_forward: { mm: 30, places: "Canlapwas and Mercedes" },
 };
