@@ -30,12 +30,13 @@ export const RankedSource = z.object({
 });
 export type RankedSource = z.infer<typeof RankedSource>;
 
-// Candidates removed before ranking: inactive (spec 04 AC4), or a neighboring barangay on a system-wide cause (blended network).
+// Candidates removed before ranking: inactive (spec 04 AC4), or a network-dependent source on a system-wide cause (blended CWD network).
+// `system_wide_cause_neighbor_blended_network` is the pre-000010 name (neighbors only); still accepted, no longer emitted.
 export const ExcludedSource = z.object({
   source_id: z.uuid(),
   name: z.string(),
   type: RankedSource.shape.type,
-  reason: z.enum(["inactive", "system_wide_cause_neighbor_blended_network"]),
+  reason: z.enum(["inactive", "network_dependent_system_wide", "system_wide_cause_neighbor_blended_network"]),
 });
 export type ExcludedSource = z.infer<typeof ExcludedSource>;
 

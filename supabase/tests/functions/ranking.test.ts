@@ -18,7 +18,7 @@ const NOW = new Date("2026-07-10T04:00:00Z");
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const src = (n: number, o: Partial<SourceRow> = {}): SourceRow => ({
   id: id(n), barangay_id: "poblacion-05", name: `s${n}`, type: "refill_station", safety_score: 0.9, travel_minutes: 10, cost_php_per_unit: 0,
-  active: true, provenance: "osm", source_ref: "ref", is_simulated: false, ...o,
+  active: true, provenance: "osm", source_ref: "ref", is_simulated: false, network_dependent: false, ...o,
 });
 const disruption = (cause = "turbidity", signal_level = 3) => ({
   id: D, started_at: "2026-07-10T00:00:00Z", resolved_at: null, cause, p_turbidity: 0.8, p_drought: 0, signal_level, status: "confirmed",
@@ -52,12 +52,59 @@ describe("rankSources (spec 04)", () => {
     expect(ranked.map((r) => r.source_id)).toEqual([id(1), id(3)]);
     expect(excluded).toEqual([{ source_id: id(2), name: "s2", type: "refill_station", reason: "inactive" }]);
   });
+  it("reachable first: an unreachable but safer source ranks after every reachable one (flagged, never excluded)", () => {
+    const { ranked, excluded } = rankSources([
+      src(1, { safety_score: 0.9, travel_minutes: 31, name: "far refill" }),
+      src(2, { safety_score: 0.4, travel_minutes: 30 }),
+      src(3, { safety_score: 1, travel_minutes: 400 }),
+      src(4, { safety_score: 0.7, travel_minutes: 5 }),
+    ], "turbidity");
+    expect(excluded).toEqual([]);
+    expect(ranked.map((r) => [r.source_id, r.exceeds_jmp_benchmark])).toEqual([[id(4), false], [id(2), false], [id(3), true], [id(1), true]]);
+  });
+  it("within reachable: safety desc, then travel asc, then cost asc, then source_id; same inside the unreachable group", () => {
+    const { ranked } = rankSources([
+      src(10, { safety_score: 0.8, travel_minutes: 5 }),
+      src(11, { safety_score: 0.9, travel_minutes: 25, cost_php_per_unit: 9 }),
+      src(12, { safety_score: 0.9, travel_minutes: 12, cost_php_per_unit: 25 }),
+      src(13, { safety_score: 0.9, travel_minutes: 12, cost_php_per_unit: 5 }),
+      src(14, { safety_score: 0.9, travel_minutes: 12, cost_php_per_unit: 5 }),
+      src(20, { safety_score: 0.9, travel_minutes: 90 }),
+      src(21, { safety_score: 0.9, travel_minutes: 60 }),
+      src(22, { safety_score: 0.5, travel_minutes: 31 }),
+    ], "repair");
+    expect(ranked.map((r) => r.source_id)).toEqual([id(13), id(14), id(12), id(11), id(10), id(21), id(20), id(22)]);
+  });
+  it("Lagundi fixture: its own deep-well ATM (0.7, in barangay) ranks #1 over a far refill (0.9, > 30 min)", () => {
+    const lagundi = [
+      src(1, { barangay_id: "lagundi", name: "Aqua Blue Water Station", safety_score: 0.9, travel_minutes: 95, cost_php_per_unit: 25 }),
+      src(2, { barangay_id: "lagundi", name: "Lagundi deep well ATM", type: "communal_tap", safety_score: 0.7, travel_minutes: 12, provenance: "wsp" }),
+      src(3, { barangay_id: "lagundi", name: "truck", type: "trucking", safety_score: 0.8, travel_minutes: 10, is_simulated: true, provenance: "placeholder" }),
+    ];
+    for (const cause of ["turbidity", "drought", "repair"]) {
+      const { ranked } = rankSources(lagundi, cause);
+      expect(ranked.map((r) => r.name)).toEqual(["truck", "Lagundi deep well ATM", "Aqua Blue Water Station"]);
+    }
+    const noTruck = rankSources(lagundi.slice(0, 2), "turbidity").ranked;
+    expect(noTruck[0].name).toBe("Lagundi deep well ATM");
+    expect(noTruck[1].exceeds_jmp_benchmark).toBe(true);
+  });
+  it("network_dependent (flag, any type): excluded for turbidity/drought, kept for repair", () => {
+    const rows = [src(1), src(2, { type: "communal_tap", safety_score: 0.7, network_dependent: true, name: "Cogao booster line" })];
+    for (const cause of ["turbidity", "drought"]) {
+      const r = rankSources(rows, cause);
+      expect(r.ranked.map((x) => x.source_id)).toEqual([id(1)]);
+      expect(r.excluded).toEqual([expect.objectContaining({ source_id: id(2), reason: "network_dependent_system_wide" })]);
+    }
+    expect(rankSources(rows, "repair").ranked.map((x) => x.source_id)).toEqual([id(1), id(2)]);
+    expect(rankSources(rows, null).ranked).toHaveLength(2);
+  });
   it("neighboring_barangay: excluded for turbidity/drought (blended network), included for repair", () => {
     const rows = [src(1), src(2, { type: "neighboring_barangay", safety_score: 0.85, is_simulated: true, provenance: "placeholder" })];
     for (const cause of ["turbidity", "drought"]) {
       const r = rankSources(rows, cause);
       expect(r.ranked.map((x) => x.source_id)).toEqual([id(1)]);
-      expect(r.excluded).toEqual([expect.objectContaining({ source_id: id(2), reason: "system_wide_cause_neighbor_blended_network" })]);
+      expect(r.excluded).toEqual([expect.objectContaining({ source_id: id(2), reason: "network_dependent_system_wide" })]);
     }
     const rep = rankSources(rows, "repair");
     expect(rep.ranked.map((x) => x.source_id)).toEqual([id(1), id(2)]);
@@ -82,12 +129,37 @@ describe("rankSources (spec 04)", () => {
 // ---- seeded data ----
 function seedSources(): SourceRow[] {
   const t = readFileSync(resolve(import.meta.dirname, "../../seed/sources.sql"), "utf8");
-  const re = /^ {2}\('([0-9a-f-]+)', '([a-z0-9-]+)', '((?:[^']|'')*)', '(\w+)', ([0-9.]+), (\d+), ([0-9.]+), true, '(\w+)', (null|'(?:[^']|'')*'), (true|false),/gm;
+  const re = /^ {2}\('([0-9a-f-]+)', '([a-z0-9-]+)', '((?:[^']|'')*)', '(\w+)', ([0-9.]+), (\d+), ([0-9.]+), true, '(\w+)', (null|'(?:[^']|'')*'), (true|false), (?:null|[0-9.]+), (?:null|[0-9.]+), (true|false)\)/gm;
   return [...t.matchAll(re)].map((m) => ({ id: m[1], barangay_id: m[2], name: m[3], type: m[4] as SourceRow["type"], safety_score: +m[5], travel_minutes: +m[6],
-    cost_php_per_unit: +m[7], active: true, provenance: m[8] as SourceRow["provenance"], source_ref: m[9] === "null" ? null : m[9], is_simulated: m[10] === "true" }));
+    cost_php_per_unit: +m[7], active: true, provenance: m[8] as SourceRow["provenance"], source_ref: m[9] === "null" ? null : m[9], is_simulated: m[10] === "true", network_dependent: m[11] === "true" }));
 }
 describe("ranking on the seeded sources.sql", () => {
   const all = seedSources();
+  it("network_dependent is set on every neighboring_barangay row and the 2 Cogao booster rows, nowhere else", () => {
+    const nd = all.filter((s) => s.network_dependent);
+    expect(nd).toHaveLength(59);
+    expect(nd.filter((s) => s.type === "neighboring_barangay")).toHaveLength(57);
+    expect(all.filter((s) => s.type === "neighboring_barangay").every((s) => s.network_dependent)).toBe(true);
+    expect(nd.filter((s) => s.type !== "neighboring_barangay").map((s) => s.barangay_id).sort()).toEqual(["darahuway-dako", "darahuway-guti"]);
+  });
+  it("system-wide causes: every barangay keeps >= 1 eligible source, and it is the simulated trucking row at worst", () => {
+    for (const cause of ["turbidity", "drought"]) for (const b of BARANGAYS) {
+      const { ranked } = rankSources(all.filter((s) => s.barangay_id === b.barangay_id), cause);
+      expect(ranked.length).toBeGreaterThanOrEqual(1);
+      expect(ranked.some((r) => r.type === "trucking")).toBe(true);
+    }
+  });
+  it("Lagundi (turbidity): own deep-well ATMs / truck rank before the far refill; Darahuway loses Cogao", () => {
+    const lag = rankSources(all.filter((s) => s.barangay_id === "lagundi"), "turbidity").ranked;
+    expect(lag[0].exceeds_jmp_benchmark).toBe(false);
+    expect(lag.findIndex((r) => r.type === "refill_station")).toBeGreaterThan(lag.findLastIndex((r) => !r.exceeds_jmp_benchmark));
+    for (const b of ["darahuway-dako", "darahuway-guti"]) {
+      const { ranked, excluded } = rankSources(all.filter((s) => s.barangay_id === b), "turbidity");
+      expect(ranked.every((r) => !r.name.includes("Cogao"))).toBe(true);
+      expect(excluded.some((e) => e.name.includes("Cogao"))).toBe(true);
+      expect(ranked[0].type).toBe("trucking");
+    }
+  });
   it("parses all 189 rows", () => expect(all).toHaveLength(189));
   it("every barangay yields a non-empty chain for every cause, ordered per AC1", () => {
     for (const cause of ["turbidity", "drought", "repair"]) {
@@ -96,7 +168,7 @@ describe("ranking on the seeded sources.sql", () => {
         expect(ranked.length).toBeGreaterThanOrEqual(cause === "repair" ? 3 : 2);
         for (let i = 1; i < ranked.length; i++) {
           const p = ranked[i - 1], q = ranked[i];
-          const k = (s: typeof p) => [-s.safety_score, s.travel_minutes, s.cost_php_per_unit];
+          const k = (s: typeof p) => [Number(s.exceeds_jmp_benchmark), -s.safety_score, s.travel_minutes, s.cost_php_per_unit];
           const cmp = k(p).map((v, j) => v - k(q)[j]).find((d) => d !== 0) ?? (p.source_id < q.source_id ? -1 : 1);
           expect(cmp).toBeLessThan(0);
         }
@@ -128,7 +200,7 @@ describe("rank-chain handler", () => {
     expect(r.status).toBe(200);
     const body = await r.json();
     expect(body.ranked_sources.map((s: any) => s.source_id)).toEqual([id(2), id(1), id(5)]);
-    expect(body.excluded.map((e: any) => e.reason).sort()).toEqual(["inactive", "system_wide_cause_neighbor_blended_network"]);
+    expect(body.excluded.map((e: any) => e.reason).sort()).toEqual(["inactive", "network_dependent_system_wide"]);
     expect(body.computed_at).toBe(NOW.toISOString());
     expect(RankedChainSchema.safeParse(body).success).toBe(true);
     expect(logs.length).toBeGreaterThan(0);
@@ -209,13 +281,13 @@ const stormData = async (_f: Date, to: Date) => ({
 });
 describe("affected-areas top_source", () => {
   it("top_source = first active source of the persisted chain, null elsewhere / when the lookup fails", async () => {
-    const { db, post } = setup([src(1, { safety_score: 0.8 }), src(2, { safety_score: 0.9, travel_minutes: 99, name: "far refill" })]);
+    const { db, post } = setup([src(1, { safety_score: 0.8 }), src(2, { safety_score: 0.9, travel_minutes: 20, name: "near refill" })]);
     await post({ barangay_id: "poblacion-05", disruption_id: D });
     const call = (fetchTop: any) => handleAffectedAreas(new Request("http://x/f?as_of=2026-07-10T04:00:00Z"), {
       fetchData: stormData, fetchBarangays: async () => BARANGAYS, findOpen: async () => disruption() as any, getById: async () => null, now: () => NOW, fetchLive: noLive, fetchTopSources: fetchTop });
     const rows = await (await call((i: string) => fetchTopSources(db, i))).json();
     const p5 = rows.find((r: any) => r.barangay_id === "poblacion-05");
-    expect(p5.top_source).toMatchObject({ source_id: id(2), name: "far refill", exceeds_jmp_benchmark: true, provenance: "osm", is_simulated: false });
+    expect(p5.top_source).toMatchObject({ source_id: id(2), name: "near refill", exceeds_jmp_benchmark: false, provenance: "osm", is_simulated: false });
     expect(typeof p5.suggested_rank).toBe("number");
     expect(rows.filter((r: any) => r.top_source).length).toBe(1);
     // deactivating the top source falls through to the next one in the persisted chain

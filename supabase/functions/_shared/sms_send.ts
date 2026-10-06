@@ -11,6 +11,8 @@ export interface SmsReport {
   planned: number;
   sent: number;
   failed: number;
+  /** Live mode only: messages to the fake demo block (+63900000000X) that were NOT sent (logged dry_run instead). */
+  skipped_demo: number;
   /** Dry-run only: what would be sent, phone numbers masked (the response is readable with the anon key). */
   would_send?: { to: string; message: string }[];
   errors: string[];
@@ -21,6 +23,13 @@ export function smsConfigFromEnv(get: (k: string) => string | undefined): SmsCon
 }
 
 export const maskPhone = (p: string) => p.replace(/\d(?=\d{3})/g, "*"); // keep the last 3 digits
+
+/** Outbox / log form: first 6 chars + last 4 digits ("+63900•••0001"). The outbox is anon-readable: never a full number. */
+export const maskForOutbox = (e164: string) => `${e164.slice(0, 6)}\u2022\u2022\u2022${e164.slice(-4)}`;
+
+/** Fake placeholder block used by the seeded demo residents: +63900000000X. The simulated handset may only use these. */
+export const DEMO_PHONE_RE = /^\+63900000000\d$/;
+export const isDemoPhone = (e164: string) => DEMO_PHONE_RE.test(e164);
 
 /** "09171234567" | "639171234567" | "+639171234567" | "9171234567" -> "+639171234567", else null. */
 export function normalizePhone(raw: string): string | null {
@@ -36,13 +45,16 @@ export async function sendSms(
 ): Promise<SmsReport> {
   if (!cfg.live) {
     return {
-      mode: "dry_run", planned: msgs.length, sent: 0, failed: 0, errors: [],
+      mode: "dry_run", planned: msgs.length, sent: 0, failed: 0, skipped_demo: 0, errors: [],
       would_send: msgs.map((m) => ({ to: maskPhone(m.number), message: m.message })),
     };
   }
-  const report: SmsReport = { mode: "live", planned: msgs.length, sent: 0, failed: 0, errors: [] };
+  // NEVER call the carrier for the fake demo block, even when live.
+  const all = msgs;
+  msgs = all.filter((m) => !isDemoPhone(m.number));
+  const report: SmsReport = { mode: "live", planned: all.length, sent: 0, failed: 0, skipped_demo: all.length - msgs.length, errors: [] };
   if (!cfg.apiKey) {
-    report.failed = msgs.length;
+    report.failed = msgs.length; // demo numbers are not failures
     report.errors.push("SEMAPHORE_API_KEY is not set");
     return report;
   }

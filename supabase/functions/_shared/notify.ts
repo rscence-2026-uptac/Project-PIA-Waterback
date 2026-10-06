@@ -4,10 +4,10 @@
 // parallel. The events are written BEFORE the SMS so a slow carrier never delays the PWA.
 import { HttpError, clampToNow, parseOrThrow } from "./spec06_http.ts";
 import { NotificationPayload, z } from "./spec06_schemas.ts";
-import type { BarangayRow, DisruptionRow, ResidentRow, Store } from "./spec06_store.ts";
+import type { BarangayRow, DisruptionRow, NewSmsOutbox, ResidentRow, Store } from "./spec06_store.ts";
 import { CAUSE_TEXT, SMS_STORE_LITRES, fmtClock, fmtWindow, renderSms, smsBarangayName } from "./sms_templates.ts";
 import type { Lang } from "./sms_templates.ts";
-import { sendSms } from "./sms_send.ts";
+import { isDemoPhone, maskForOutbox, sendSms } from "./sms_send.ts";
 import type { FetchFn, SmsConfig, SmsMessage, SmsReport } from "./sms_send.ts";
 
 export const MAX_PAYLOADS = 200;
@@ -91,14 +91,23 @@ export async function notifyResidents(deps: NotifyDeps, body: unknown) {
   const smsBarangays = ids.filter((id) => byBarangay.get(id)!.some((p) => p.channel === "sms"));
   const residents = smsBarangays.length ? await store.getSmsResidents(smsBarangays) : [];
   const msgs: SmsMessage[] = [];
+  const outbox: NewSmsOutbox[] = [];
   const perBarangay = new Map<string, number>();
   for (const r of residents as ResidentRow[]) {
     if (!r.phone) continue;
     const p = byBarangay.get(r.barangay_id)!.find((x) => x.channel === "sms")!;
-    msgs.push({ number: r.phone, message: buildNotifySms(p, disruption, barangays.get(r.barangay_id)!, r.preferred_language) });
+    const message = buildNotifySms(p, disruption, barangays.get(r.barangay_id)!, r.preferred_language);
+    msgs.push({ number: r.phone, message });
+    outbox.push({
+      disruption_id: disruptionId, barangay_id: r.barangay_id, resident_id: r.id, to_masked: maskForOutbox(r.phone),
+      template: p.store_water_advice ? "sms.water_off" : "sms.water_off_no_store", language: r.preferred_language,
+      body: message, direction: "outbound", mode: deps.sms.live && !isDemoPhone(r.phone) ? "live" : "dry_run", // demo numbers are never sent
+    });
     perBarangay.set(r.barangay_id, (perBarangay.get(r.barangay_id) ?? 0) + 1);
   }
   const sms: SmsReport = await sendSms(msgs, deps.sms, deps.fetch);
+  // Simulated handset: one outbox row per planned message (masked numbers only). Never fails the notify.
+  try { await store.insertSmsOutbox(outbox); } catch (e) { console.error("sms_outbox insert failed", (e as Error).message); }
   return {
     disruption_id: disruptionId, status: "notified",
     notified: ids.map((id) => ({

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PIA Waterback demo driver. Calls ONLY Edge Functions with the anon key (like the app), plus service-role reset.
-// Usage: node scripts/demo/demo.mjs <status|reset|run|listen|verify-realtime> [flags]  (see README.md)
+// Usage: node scripts/demo/demo.mjs <status|reset|run|listen|verify-realtime|sms|reply> [flags]  (see README.md)
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -153,6 +153,7 @@ async function doReset(sb = serviceClient()) {
   await del("continuity_chains", (q) => q.not("id", "is", null));
   await del("disruptions", (q) => q.not("id", "is", null));
   await del("readings", (q) => q.eq("is_simulated", false));
+  await del("sms_outbox", (q) => q.not("id", "is", null)); // simulated-handset log; residents are never touched
   out("  seed tables, sources, simulated readings untouched");
 }
 async function cmdReset() {
@@ -274,6 +275,11 @@ async function runScenario({ log = true } = {}) {
     (within ? ok : bad)(`elapsed ${fmtMs(ms)} vs 10 s limit`);
     info(`status=${data.status}  barangays notified=${data.notified.length}`);
     info(`sms mode=${data.sms.mode} planned=${data.sms.planned} sent=${data.sms.sent} failed=${data.sms.failed}`);
+    try {
+      const { count, error } = await anonClient().from("sms_outbox").select("*", { count: "exact", head: true }).eq("disruption_id", did()).eq("direction", "outbound");
+      if (error) throw new Error(error.message);
+      info(`sms_outbox: ${count} SMS went to the simulated handset (run \`sms\` in another terminal to see them)`);
+    } catch (e) { info(`sms_outbox: could not count (${e.message}; migration 000009 applied?)`); }
     if (data.sms.mode !== "dry_run") throw new Error(`SMS mode is "${data.sms.mode}", expected dry_run. Refusing to continue.`);
     if (!within) throw new Error("notify exceeded 10 s");
   });
@@ -426,11 +432,66 @@ async function cmdVerify() {
   process.exit(failed ? 1 : 0);
 }
 
+// ---------- simulated handset ----------
+// Seeded demo residents (supabase/seed/demo_residents.sql): fake +63900000000X block, never a real subscriber.
+const DEMO_PHONES = { lagundi: "+639000000001", payao: "+639000000002", "darahuway-dako": "+639000000003", "darahuway-guti": "+639000000004" };
+const hhmm = (iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Manila" });
+function printSms(r) {
+  const inbound = r.direction === "inbound";
+  const who = `${inbound ? "from" : "to  "} ${r.to_masked}`;
+  const bar = "-".repeat(64);
+  out(bar);
+  out(`  ${inbound ? "<<" : ">>"} ${(r.barangay_id ?? "unknown barangay").padEnd(16)} ${who}  [${r.language ?? "?"}]  ${hhmm(r.created_at)}${r.mode === "dry_run" ? "  (simulated)" : "  (LIVE)"}`);
+  const words = String(r.body).split(" ");
+  let line = "    ";
+  for (const w of words) { if ((line + w).length > 66) { out(line.trimEnd()); line = "    "; } line += w + " "; }
+  out(line.trimEnd());
+}
+async function cmdSms() {
+  config();
+  const secs = Number(flags.seconds ?? 0);
+  out(`Simulated handset: tailing sms_outbox via Realtime (anon key)${secs ? ` for ${secs} s` : " (Ctrl+C to stop)"}`);
+  const sb = anonClient();
+  let n = 0;
+  const channel = sb.channel(`demo-sms-${Date.now()}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "sms_outbox" }, (p) => { n++; printSms(p.new); });
+  await new Promise((res, rej) => {
+    const timer = setTimeout(() => rej(new Error("Realtime subscribe timed out after 15 s")), 15_000);
+    channel.subscribe((status, err) => {
+      if (status === "SUBSCRIBED") { clearTimeout(timer); res(); }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { clearTimeout(timer); rej(new Error(`Realtime ${status}${err ? ": " + err.message : ""}`)); }
+    });
+  }).catch((e) => die(e.message));
+  ok("subscribed; waiting for messages");
+  if (flags.history) {
+    const { data } = await sb.from("sms_outbox").select("*").order("created_at", { ascending: false }).limit(Number(flags.history) || 10);
+    (data ?? []).reverse().forEach(printSms);
+  }
+  if (secs) { await sleep(secs * 1000); await sb.removeChannel(channel); out(`\n${n} messages received`); process.exit(0); }
+  await new Promise(() => {});
+}
+async function cmdReply() {
+  const [who, ...kw] = argv.slice(1).filter((a) => !a.startsWith("--"));
+  const message = kw.join(" ").trim();
+  if (!who || !message) die("Usage: reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS  (demo barangays: " + Object.keys(DEMO_PHONES).join(", ") + ")");
+  const from = DEMO_PHONES[who] ?? who;
+  if (!/^\+63900000000\d$/.test(from)) die(`"${who}" is not a demo resident (fake block +63900000000X). Demo barangays: ${Object.keys(DEMO_PHONES).join(", ")}`);
+  const { url, anon } = config();
+  const res = await fetch(`${url}/functions/v1/sms-webhook?demo=1`, {
+    method: "POST", headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, message }),
+  });
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch { data = text; }
+  if (!res.ok) die(`sms-webhook -> HTTP ${res.status} ${typeof data === "string" ? data.slice(0, 300) : JSON.stringify(data).slice(0, 500)}`);
+  out(`>> ${who} (${from.slice(0, 6)}•••${from.slice(-4)}) sent: ${message}`);
+  out(`<< reply (${data.sms?.mode}): ${data.reply}`);
+}
+
 // ---------- main ----------
-const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, listen: cmdListen, "verify-realtime": cmdVerify };
+const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, listen: cmdListen, "verify-realtime": cmdVerify, sms: cmdSms, reply: cmdReply };
 if (!commands[command]) {
   out("Usage: node scripts/demo/demo.mjs <command> [flags]\n");
-  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
+  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n  sms [--seconds S] [--history N]        simulated handset: tail sms_outbox\n  reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
   process.exit(command ? 2 : 0);
 }
 try { await commands[command](); process.exit(process.exitCode ?? 0); }

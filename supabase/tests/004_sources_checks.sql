@@ -14,6 +14,15 @@ do $$ begin
   assert (select count(*) from barangays where lat is null or lng is null) = 0, 'all 57 barangays have a centroid (Nominatim geocoding of the 31 unserved)';
   assert (select count(*) from barangays where lat not between 11.5 and 12.0 or lng not between 124.5 and 125.2) = 0, 'centroids inside the Catbalogan area';
   assert (select count(*) from sources where travel_minutes = 40 and provenance <> 'wsp' and name like '%unknown%') = 0, 'no default-40 rows where a centroid exists';
+  -- migration 000010: network_dependent (fed from the blended CWD network; rank-chain drops it on system-wide causes)
+  assert (select count(*) from sources where type = 'neighboring_barangay' and not network_dependent) = 0, 'every neighboring_barangay row is network_dependent';
+  assert (select count(*) from sources where name like 'Level I communal point via Cogao booster pump line%' and not network_dependent) = 0, 'Cogao booster rows are network_dependent';
+  assert (select count(*) from sources where network_dependent and type <> 'neighboring_barangay'
+            and name not like 'Level I communal point via Cogao booster pump line%') = 0, 'network_dependent only on neighbors + Cogao';
+  assert (select count(*) from barangays b where not exists (
+            select 1 from sources s where s.barangay_id = b.barangay_id and s.active and not s.network_dependent)) = 0, 'every barangay has >= 1 active non-network-dependent source';
+  assert (select count(*) from barangays b where not exists (
+            select 1 from sources s where s.barangay_id = b.barangay_id and s.active and s.type = 'trucking')) = 0, 'every barangay has the trucking fallback row';
 end $$;
 
 -- barangays upsert updates coordinates but a NULL never wipes an existing value (rolled back)

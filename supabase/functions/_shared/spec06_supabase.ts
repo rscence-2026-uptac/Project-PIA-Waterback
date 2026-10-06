@@ -3,7 +3,7 @@
 // does not need npm types and stays importable by the vitest suite.
 import { HttpError } from "./spec06_http.ts";
 import type {
-  BarangayRow, DisruptionRow, EventRow, NewAllocation, NewEvent, NewReading, ResidentRow, SourceRow, Store,
+  BarangayRow, DisruptionRow, EventRow, NewAllocation, NewEvent, NewReading, NewSmsOutbox, ResidentRow, SourceRow, Store,
 } from "./spec06_store.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -72,6 +72,9 @@ export function supabaseStore(sb: Sb): Store {
       const rows = check(await sb.from("residents").select("id,barangay_id,phone,display_name,preferred_language,channel")
         .eq("phone", e164).order("created_at", { ascending: false }).limit(1));
       return (rows as ResidentRow[])[0] ?? null;
+    },
+    async insertSmsOutbox(rows: NewSmsOutbox[]) {
+      if (rows.length) check(await sb.from("sms_outbox").insert(rows));
     },
     async insertReading(row: NewReading) {
       const r = await sb.from("readings").upsert(row, { onConflict: "client_local_id", ignoreDuplicates: true }).select("id");

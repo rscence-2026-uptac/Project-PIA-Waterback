@@ -63,6 +63,7 @@ export const Source = z.object({
   is_simulated: z.boolean().default(false),          // true = simulated placeholder, never a real facility
   lat: z.number().min(-90).max(90).nullable().default(null),    // source location when known
   lng: z.number().min(-180).max(180).nullable().default(null),
+  network_dependent: z.boolean().default(false),   // fed from the blended CWD network: dry in a system-wide failure (rank-chain excludes it for turbidity/drought)
 });
 export type Source = z.infer<typeof Source>;
 
@@ -164,3 +165,20 @@ export const RainForecastHourly = z.object({ // forecast_rain_48h_mm feature (sp
   fetched_at: z.iso.datetime({ offset: true }).optional(),
 });
 export type RainForecastHourly = z.infer<typeof RainForecastHourly>;
+
+// Simulated-handset log (migration 20261006000009). World-readable with the anon key, so the number is ALWAYS masked
+// (first 6 chars + last 4 digits, e.g. "+63900•••0001"); never the full phone. Writes: service_role only.
+export const SmsOutbox = z.object({
+  id: z.uuid(),
+  disruption_id: z.uuid().nullable(),
+  barangay_id: z.string().nullable(),
+  resident_id: z.uuid().nullable(),
+  to_masked: z.string().regex(/^\+63\d{3}•{3}\d{4}$/), // recipient (outbound) or sender (inbound)
+  template: z.string().nullable(),   // SmsKey, e.g. "sms.water_off"; null for inbound
+  language: z.enum(["waray", "filipino", "english"]).nullable(),
+  body: z.string().min(1),
+  direction: z.enum(["outbound", "inbound"]),
+  mode: z.enum(["dry_run", "live"]),
+  created_at: z.iso.datetime({ offset: true }),
+});
+export type SmsOutbox = z.infer<typeof SmsOutbox>;
