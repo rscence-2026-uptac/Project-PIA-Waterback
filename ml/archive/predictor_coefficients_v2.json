@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-06.3",
-  "trained_at": "2026-10-06T12:16:06+00:00",
+  "version": "2026-10-06.2",
+  "trained_at": "2026-10-06T10:03:23+00:00",
   "seed": 20261006,
   "training_data": "synthetic, physics-informed; rain = real Open-Meteo 2016-2025 Catbalogan; not real incident history",
   "signal_level_thresholds": [
@@ -13,21 +13,23 @@
   "turbidity": {
     "features": [
       "turbidity_ntu",
+      "turbidity_slope_per_hr",
       "rain_24h_mm",
       "rain_72h_mm",
       "forecast_rain_48h_mm"
     ],
-    "bias": -3.0683144361121357,
+    "bias": -3.067541607941377,
     "weights": {
-      "turbidity_ntu": 0.009008505226746311,
-      "rain_24h_mm": 0.10001515917207138,
-      "rain_72h_mm": 0.011300568313636562,
-      "forecast_rain_48h_mm": 0.2024226199371308
+      "turbidity_ntu": 0.009111627771016465,
+      "turbidity_slope_per_hr": -0.0008902871096390723,
+      "rain_24h_mm": 0.09876844308516028,
+      "rain_72h_mm": 0.011187125382325063,
+      "forecast_rain_48h_mm": 0.20224929833247204
     },
     "metrics": {
-      "recall": 0.8457587548638132,
-      "precision": 0.7862258554582942,
-      "roc_auc": 0.9358348547369129,
+      "recall": 0.8454474708171206,
+      "precision": 0.7855954877431485,
+      "roc_auc": 0.935820362884588,
       "n_test": 36000,
       "positive_rate": 0.35694444444444445
     }

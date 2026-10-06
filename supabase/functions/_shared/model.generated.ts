@@ -1,8 +1,8 @@
 // GENERATED from ml/predictor_coefficients.json — never hand-edit. Regenerate: node supabase/functions/_shared/gen_model.mjs
 
 export const modelMeta = {
-  "version": "2026-10-06.2",
-  "trained_at": "2026-10-06T10:02:30+00:00",
+  "version": "2026-10-06.3",
+  "trained_at": "2026-10-06T12:16:06+00:00",
   "seed": 20261006,
   "training_data": "synthetic, physics-informed; rain = real Open-Meteo 2016-2025 Catbalogan; not real incident history",
   "decision_threshold": 0.4,
@@ -17,19 +17,17 @@ export const modelMeta = {
 const sigmoid = (z: number): number => 1 / (1 + Math.exp(-z));
 
 export const turbidityCoefficients = {
-  "bias": -3.067541607941377,
+  "bias": -3.0683144361121357,
   "weights": {
-    "turbidity_ntu": 0.009111627771016465,
-    "turbidity_slope_per_hr": -0.0008902871096390723,
-    "rain_24h_mm": 0.09876844308516028,
-    "rain_72h_mm": 0.011187125382325063,
-    "forecast_rain_48h_mm": 0.20224929833247204
+    "turbidity_ntu": 0.009008505226746311,
+    "rain_24h_mm": 0.10001515917207138,
+    "rain_72h_mm": 0.011300568313636562,
+    "forecast_rain_48h_mm": 0.2024226199371308
   }
 } as const;
 
 export interface TurbidityModelFeatures {
   turbidity_ntu: number;
-  turbidity_slope_per_hr: number;
   rain_24h_mm: number;
   rain_72h_mm: number;
   forecast_rain_48h_mm: number;
@@ -39,7 +37,6 @@ export interface TurbidityModelFeatures {
 export function turbidityRisk(f: TurbidityModelFeatures): number {
   const z = turbidityCoefficients.bias
     + turbidityCoefficients.weights.turbidity_ntu * f.turbidity_ntu
-    + turbidityCoefficients.weights.turbidity_slope_per_hr * f.turbidity_slope_per_hr
     + turbidityCoefficients.weights.rain_24h_mm * f.rain_24h_mm
     + turbidityCoefficients.weights.rain_72h_mm * f.rain_72h_mm
     + turbidityCoefficients.weights.forecast_rain_48h_mm * f.forecast_rain_48h_mm;

@@ -1,6 +1,6 @@
 # Disruption predictor: v3 candidate study (turbidity model)
 
-Status: **candidate, not live.** Live v2 files are untouched. Raw numbers: `ml/reports/v3_comparison.md`, `ml/reports/v3_results.json`. Code: `ml/v3_lib.py`, `ml/v3_eval.py`, `ml/test_v3.py`. Export: `ml/predictor_v3_candidate.json`, `ml/predictor_v3_test_vectors.json`. Everything below is on the **synthetic** plant response (real Catbalogan rain, simulated turbidity); none of it is incident history. Drought model not re-studied.
+Status: **adopted as v3 (model 2026-10-06.3) on 2026-10-06; see docs/predictor.md.** v2 files archived in ml/archive/. Raw numbers: `ml/reports/v3_comparison.md`, `ml/reports/v3_results.json`. Code: `ml/v3_lib.py`, `ml/v3_eval.py`, `ml/test_v3.py`. Export: `ml/predictor_v3_candidate.json`, `ml/predictor_v3_test_vectors.json`. Everything below is on the **synthetic** plant response (real Catbalogan rain, simulated turbidity); none of it is incident history. Drought model not re-studied.
 
 ## Comparison (p >= 0.4; 500 trajectories; test = 100 held-out trajectories)
 | model | recall | prec | AUC | Brier | events caught / lead med (p25) h | false-alarm episodes /30d | time-split recall / prec / AUC (train 2016-22, test 2023-25) |

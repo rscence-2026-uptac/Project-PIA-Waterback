@@ -12,8 +12,9 @@ const root = resolve(here, "../../..");
 const coefPath = process.argv[2] ? resolve(process.argv[2]) : resolve(root, "ml/predictor_coefficients.json");
 const c = JSON.parse(readFileSync(coefPath, "utf8"));
 
+// v3 (2026-10-06.3): turbidity = v2 minus turbidity_slope_per_hr
 const EXPECTED = {
-  turbidity: ["turbidity_ntu", "turbidity_slope_per_hr", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"],
+  turbidity: ["turbidity_ntu", "rain_24h_mm", "rain_72h_mm", "forecast_rain_48h_mm"],
   drought: ["reservoir_pct", "rain_14d_mm", "rain_30d_mm", "days_since_rain_over_5mm"],
 };
 for (const [name, feats] of Object.entries(EXPECTED)) {

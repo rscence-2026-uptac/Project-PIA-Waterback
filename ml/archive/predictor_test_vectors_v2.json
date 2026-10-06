@@ -3,195 +3,217 @@
     {
       "features": {
         "turbidity_ntu": 124.7923,
+        "turbidity_slope_per_hr": 1.8389,
         "rain_24h_mm": 6.1,
         "rain_72h_mm": 9.8,
         "forecast_rain_48h_mm": 10.8228
       },
-      "p": 0.7246199610237636
+      "p": 0.7249016393418326
     },
     {
       "features": {
         "turbidity_ntu": 16.3665,
+        "turbidity_slope_per_hr": -0.6779,
         "rain_24h_mm": 0.7,
         "rain_72h_mm": 5.2,
         "forecast_rain_48h_mm": 2.0559
       },
-      "p": 0.08502569295000574
+      "p": 0.08512261286380136
     },
     {
       "features": {
         "turbidity_ntu": 15.0676,
+        "turbidity_slope_per_hr": -0.9786,
         "rain_24h_mm": 1.0,
         "rain_72h_mm": 2.4,
         "forecast_rain_48h_mm": 2.6722
       },
-      "p": 0.09410368636056819
+      "p": 0.09420737742004598
     },
     {
       "features": {
         "turbidity_ntu": 51.9798,
+        "turbidity_slope_per_hr": 8.2837,
         "rain_24h_mm": 1.7,
         "rain_72h_mm": 7.2,
         "forecast_rain_48h_mm": 2.0017
       },
-      "p": 0.12526659701474438
+      "p": 0.12477162198716221
     },
     {
       "features": {
         "turbidity_ntu": 15.2961,
+        "turbidity_slope_per_hr": -0.0489,
         "rain_24h_mm": 0.0,
         "rain_72h_mm": 0.4,
         "forecast_rain_48h_mm": 1.2299
       },
-      "p": 0.06434186678348434
+      "p": 0.06447052913995316
     },
     {
       "features": {
         "turbidity_ntu": 27.5888,
+        "turbidity_slope_per_hr": -2.3499,
         "rain_24h_mm": 2.4,
         "rain_72h_mm": 5.4,
         "forecast_rain_48h_mm": 2.4799
       },
-      "p": 0.11745719930373427
+      "p": 0.11763098537375624
     },
     {
       "features": {
         "turbidity_ntu": 31.6013,
+        "turbidity_slope_per_hr": -4.3911,
         "rain_24h_mm": 1.2,
         "rain_72h_mm": 5.0,
         "forecast_rain_48h_mm": 2.0929
       },
-      "p": 0.10124541167799862
+      "p": 0.10174834858171
     },
     {
       "features": {
         "turbidity_ntu": 114.0803,
+        "turbidity_slope_per_hr": -1.0554,
         "rain_24h_mm": 5.8,
         "rain_72h_mm": 10.5,
         "forecast_rain_48h_mm": 7.6531
       },
-      "p": 0.5516359950236936
+      "p": 0.552557910320787
     },
     {
       "features": {
         "turbidity_ntu": 27.2601,
+        "turbidity_slope_per_hr": 0.983,
         "rain_24h_mm": 0.0,
         "rain_72h_mm": 0.0,
         "forecast_rain_48h_mm": 0.795
       },
-      "p": 0.06526447913018119
+      "p": 0.06542149945567703
     },
     {
       "features": {
         "turbidity_ntu": 203.8477,
+        "turbidity_slope_per_hr": -3.1783,
         "rain_24h_mm": 6.5,
         "rain_72h_mm": 46.1,
         "forecast_rain_48h_mm": 7.038
       },
-      "p": 0.7963691060466953
+      "p": 0.7979973205466911
     },
     {
       "features": {
         "turbidity_ntu": 169.6356,
+        "turbidity_slope_per_hr": 5.0299,
         "rain_24h_mm": 12.6,
         "rain_72h_mm": 30.6,
         "forecast_rain_48h_mm": 12.1015
       },
-      "p": 0.9252181600461685
+      "p": 0.9246983190055889
     },
     {
       "features": {
         "turbidity_ntu": 21.8525,
+        "turbidity_slope_per_hr": -2.6849,
         "rain_24h_mm": 0.6,
         "rain_72h_mm": 6.0,
         "forecast_rain_48h_mm": 23.7844
       },
-      "p": 0.8880381973131606
+      "p": 0.8880248344910203
     },
     {
       "features": {
         "turbidity_ntu": 17.9113,
+        "turbidity_slope_per_hr": -0.8343,
         "rain_24h_mm": 0.9,
         "rain_72h_mm": 4.1,
         "forecast_rain_48h_mm": 3.1947
       },
-      "p": 0.10679215070683366
+      "p": 0.10690874959356782
     },
     {
       "features": {
         "turbidity_ntu": 14.98,
+        "turbidity_slope_per_hr": -0.1167,
         "rain_24h_mm": 0.0,
         "rain_72h_mm": 0.1,
         "forecast_rain_48h_mm": 1.5038
       },
-      "p": 0.06736842307090159
+      "p": 0.06750360258559342
     },
     {
       "features": {
         "turbidity_ntu": 224.5487,
+        "turbidity_slope_per_hr": 54.9062,
         "rain_24h_mm": 3.2,
         "rain_72h_mm": 5.7,
         "forecast_rain_48h_mm": 2.6657
       },
-      "p": 0.469685582992933
+      "p": 0.4622076843219412
     },
     {
       "features": {
         "turbidity_ntu": 11.8551,
+        "turbidity_slope_per_hr": -0.15,
         "rain_24h_mm": 1.2,
         "rain_72h_mm": 4.3,
         "forecast_rain_48h_mm": 9.0048
       },
-      "p": 0.274854219890779
+      "p": 0.2745721493553707
     },
     {
       "features": {
         "turbidity_ntu": 30.2107,
+        "turbidity_slope_per_hr": 3.5493,
         "rain_24h_mm": 1.3,
         "rain_72h_mm": 3.6,
         "forecast_rain_48h_mm": 19.4156
       },
-      "p": 0.7866244502217643
+      "p": 0.785840242860183
     },
     {
       "features": {
         "turbidity_ntu": 50.8946,
+        "turbidity_slope_per_hr": -1.1525,
         "rain_24h_mm": 4.2,
         "rain_72h_mm": 26.6,
         "forecast_rain_48h_mm": 2.07
       },
-      "p": 0.18691881923197634
+      "p": 0.1866810411566643
     },
     {
       "features": {
         "turbidity_ntu": 13.7426,
+        "turbidity_slope_per_hr": -1.6164,
         "rain_24h_mm": 1.4,
         "rain_72h_mm": 5.8,
         "forecast_rain_48h_mm": 9.6288
       },
-      "p": 0.3121981489440432
+      "p": 0.3121029903727043
     },
     {
       "features": {
         "turbidity_ntu": 38.4834,
+        "turbidity_slope_per_hr": -4.2006,
         "rain_24h_mm": 1.8,
         "rain_72h_mm": 17.4,
         "forecast_rain_48h_mm": 22.1242
       },
-      "p": 0.8941129526122014
+      "p": 0.8941535117683231
     },
     {
       "features": {
         "turbidity_ntu": 3.7646,
+        "turbidity_slope_per_hr": -511.9907,
         "rain_24h_mm": 0.0,
         "rain_72h_mm": 0.0,
         "forecast_rain_48h_mm": 0.0
       },
-      "p": 0.04589572393156656
+      "p": 0.07060576248976796
     },
     {
       "features": {
         "turbidity_ntu": 4718.071,
+        "turbidity_slope_per_hr": 670.6457,
         "rain_24h_mm": 203.3,
         "rain_72h_mm": 377.8,
         "forecast_rain_48h_mm": 932.3362
@@ -201,6 +223,7 @@
     {
       "features": {
         "turbidity_ntu": 2360.9178,
+        "turbidity_slope_per_hr": 79.3275,
         "rain_24h_mm": 101.65,
         "rain_72h_mm": 188.9,
         "forecast_rain_48h_mm": 466.1681
@@ -210,63 +233,70 @@
     {
       "features": {
         "turbidity_ntu": 38.69,
+        "turbidity_slope_per_hr": -0.7845,
         "rain_24h_mm": 2.1,
         "rain_72h_mm": 7.9,
         "forecast_rain_48h_mm": 3.9359
       },
-      "p": 0.16468781811473268
+      "p": 0.16486185617718752
     },
     {
       "features": {
         "turbidity_ntu": 0.0,
+        "turbidity_slope_per_hr": 0.0,
         "rain_24h_mm": 0.0,
         "rain_72h_mm": 0.0,
         "forecast_rain_48h_mm": 0.0
       },
-      "p": 0.0444333400467857
+      "p": 0.044466165127509165
     },
     {
       "features": {
         "turbidity_ntu": 3828.3033,
-        "rain_24h_mm": 65.549,
-        "rain_72h_mm": 375.6444,
-        "forecast_rain_48h_mm": 208.1318
+        "turbidity_slope_per_hr": -130.6789,
+        "rain_24h_mm": 202.1401,
+        "rain_72h_mm": 84.3389,
+        "forecast_rain_48h_mm": 511.3893
       },
       "p": 1.0
     },
     {
       "features": {
-        "turbidity_ntu": 2589.5762,
-        "rain_24h_mm": 42.8314,
-        "rain_72h_mm": 222.9019,
-        "forecast_rain_48h_mm": 252.4203
+        "turbidity_ntu": 996.9786,
+        "turbidity_slope_per_hr": 185.7646,
+        "rain_24h_mm": 55.0414,
+        "rain_72h_mm": 335.5356,
+        "forecast_rain_48h_mm": 848.0236
       },
       "p": 1.0
     },
     {
       "features": {
-        "turbidity_ntu": 4190.6821,
-        "rain_24h_mm": 184.9153,
-        "rain_72h_mm": 62.2977,
-        "forecast_rain_48h_mm": 284.6026
+        "turbidity_ntu": 781.1344,
+        "turbidity_slope_per_hr": -150.9821,
+        "rain_24h_mm": 182.2118,
+        "rain_72h_mm": 310.4963,
+        "forecast_rain_48h_mm": 527.0928
       },
       "p": 1.0
     },
     {
       "features": {
-        "turbidity_ntu": 4229.0588,
-        "rain_24h_mm": 167.0829,
-        "rain_72h_mm": 213.5878,
-        "forecast_rain_48h_mm": 928.2324
-      },
-      "p": 1.0
-    },
-    {
-      "features": {
-        "turbidity_ntu": 131.3887,
+        "turbidity_ntu": 4697.3202,
+        "turbidity_slope_per_hr": -479.9748,
         "rain_24h_mm": 182.2367,
         "rain_72h_mm": 225.3326,
         "forecast_rain_48h_mm": 302.9518
+      },
+      "p": 1.0
+    },
+    {
+      "features": {
+        "turbidity_ntu": 2588.0249,
+        "turbidity_slope_per_hr": -149.6883,
+        "rain_24h_mm": 47.0525,
+        "rain_72h_mm": 227.6185,
+        "forecast_rain_48h_mm": 579.4109
       },
       "p": 1.0
     }

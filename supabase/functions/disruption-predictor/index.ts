@@ -22,7 +22,7 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 }
 
 const fetchData: FetchData = async (from, to) => {
-  // `from` = as_of - 90 d (rain history). Readings are only needed for the last ~2 days (6-reading slope, 24 h staleness).
+  // `from` = as_of - 90 d (rain history). Readings are only needed for the last ~2 days (6 h turbidity staleness, 24 h fallback lookback).
   const readingsFrom = new Date(Math.max(from.getTime(), to.getTime() - 2 * 24 * 3_600_000));
   const forecastTo = new Date(to.getTime() + 48 * 3_600_000);
   const [readings, rain, forecast] = await Promise.all([
