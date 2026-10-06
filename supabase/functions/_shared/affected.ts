@@ -5,10 +5,12 @@ import type { FetchLive } from "./forecast.ts";
 import { makeLiveFetcher } from "./forecast.ts";
 import { json, parseAsOf, preflight, UUID_RE } from "./http.ts";
 import type { PredictorOutput } from "./predict.ts";
-import { runPredictor } from "./predictor_runner.ts";
+import { runPredictorWithReadings } from "./predictor_runner.ts";
 import { residentState } from "./resident_state.generated.ts";
-import type { DisruptionCause, ResidentStateKind, ServiceLevel } from "./resident_state.generated.ts";
+import type { DisruptionCause, HeadsUpUrgency, ResidentStateKind, ServiceLevel } from "./resident_state.generated.ts";
 import type { DisruptionRow } from "./disruption_monitor.ts";
+import { interruptionObserved, latestKuladorStatus } from "./interruption.ts";
+export { interruptionObserved, latestKuladorStatus, OBSERVED_STATUSES } from "./interruption.ts";
 
 export type CoverageSource = "cwd_service_map" | "estimate" | "unknown";
 export interface BarangayRow {
@@ -35,6 +37,8 @@ export interface AffectedAreaOut {
   /** Extra fields (not in the spec 03 zod object; Dev B's parse strips them). */
   resident_state: ResidentStateKind;
   heads_up: boolean;
+  /** Present when heads_up: possible (signal 1) / likely (2) / very_likely (3-4). Optional, non-breaking. */
+  heads_up_urgency?: HeadsUpUrgency;
   /** Spec 03/04 heuristic: 1-based allocation priority (see suggestRanks). null when there is no disruption. */
   suggested_rank: number | null;
   /** First still-active source of the persisted spec 04 chain; null when no chain is persisted yet. */
@@ -74,11 +78,11 @@ export function suggestRanks(rows: Pick<AffectedAreaOut, "barangay_id" | "signal
 
 export function buildAffectedAreas(
   barangays: BarangayRow[],
-  ctx: { signal_level: number; cause: DisruptionCause | null; disruption_id: string | null; min_signal?: number },
+  ctx: { signal_level: number; cause: DisruptionCause | null; disruption_id: string | null; min_signal?: number; interruption_observed?: boolean },
 ): AffectedAreaOut[] {
   if (ctx.signal_level < (ctx.min_signal ?? 0)) return [];
   const rows = barangays.map((b) => {
-    const rs = residentState(ctx.signal_level, ctx.cause, b.service_level);
+    const rs = residentState(ctx.signal_level, ctx.cause, b.service_level, { interruption_observed: ctx.interruption_observed });
     const unserved = b.service_level === "unserved";
     // Unknown unless we have both counts AND a source for them: never show a guessed number (spec 03 AC).
     const known = !unserved && b.piped_households != null && b.unpiped_households != null && b.coverage_source !== "unknown";
@@ -100,6 +104,7 @@ export function buildAffectedAreas(
       vulnerable_flag: b.critical_facilities.length > 0, // residents.is_vulnerable is PII: not used here
       resident_state: rs.state,
       heads_up: rs.heads_up,
+      ...(rs.heads_up_urgency ? { heads_up_urgency: rs.heads_up_urgency } : {}),
       suggested_rank: null,
       top_source: null,
     };
@@ -139,12 +144,13 @@ export async function handleAffectedAreas(req: Request, deps: AffectedDeps): Pro
   try {
     const disruption = did ? await deps.getById(did) : await deps.findOpen();
     if (did && !disruption) return json(404, { error: "disruption not found" });
-    const [prediction, barangays] = await Promise.all([
-      runPredictor(deps.fetchData, a.asOf, now, deps.fetchLive ?? makeLiveFetcher()),
+    const [{ output: prediction, readings }, barangays] = await Promise.all([
+      runPredictorWithReadings(deps.fetchData, a.asOf, now, deps.fetchLive ?? makeLiveFetcher()),
       deps.fetchBarangays(),
     ]);
     const cause = disruption?.cause ?? causeOf(prediction);
-    const rows = buildAffectedAreas(barangays, { signal_level: prediction.signal_level, cause, disruption_id: disruption?.id ?? null, min_signal: minSignal });
+    const rows = buildAffectedAreas(barangays, { signal_level: prediction.signal_level, cause, disruption_id: disruption?.id ?? null, min_signal: minSignal,
+      interruption_observed: interruptionObserved(disruption?.status, latestKuladorStatus(readings, a.asOf)) });
     if (disruption && deps.fetchTopSources && rows.length) {
       try {
         const tops = await deps.fetchTopSources(disruption.id);

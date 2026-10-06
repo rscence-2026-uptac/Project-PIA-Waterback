@@ -1,4 +1,5 @@
 // 20px stroke icons used across the wireframes. Always paired with a visible word.
+// eslint-disable-next-line react-refresh/only-export-components
 export const PATHS = {
   drop: "M12 3c-3.5 4.4-6 7.7-6 10.6a6 6 0 0 0 12 0C18 10.7 15.5 7.4 12 3z",
   dropOff: "M12 3c-1.3 1.6-2.4 3-3.3 4.3M6.4 11.4A8 8 0 0 0 6 13.6a6 6 0 0 0 10.6 3.9M17.8 14.4c.1-.3.2-.5.2-.8 0-2.9-2.5-6.2-6-10.6M4 4l16 16",

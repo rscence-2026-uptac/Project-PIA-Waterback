@@ -18,3 +18,21 @@ export const RankedSource = z.object({
   source_ref: z.string().nullable().optional(),
 });
 export type RankedSource = z.infer<typeof RankedSource>;
+
+// rank-chain response (supabase/functions/README.md, "POST rank-chain"). Extras are optional.
+export const RankedChain = z.object({
+  barangay_id: z.string(),
+  disruption_id: z.string().optional(),
+  ranked_sources: z.array(RankedSource),
+  excluded: z.array(z.object({ source_id: z.string(), name: z.string(), type: SourceType.optional(), reason: z.string() })).optional(),
+  warning: z.string().optional(),
+  computed_at: z.string().optional(),
+});
+export type RankedChain = z.infer<typeof RankedChain>;
+
+export const RankedChainBatch = z.object({
+  disruption_id: z.string(),
+  cause: z.string().optional(),
+  chains: z.array(RankedChain),
+});
+export type RankedChainBatch = z.infer<typeof RankedChainBatch>;

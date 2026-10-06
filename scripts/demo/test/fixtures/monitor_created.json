@@ -1,0 +1,7 @@
+{"monitor":{"action":"created","disruption":{"id":"d1","signal_level":2,"cause":"turbidity","status":"predicted"},
+  "prediction":{"signal_level":2,"operator_actions":[{"text":"Store water tonight notice ready"},{"text":"Review backup sources"}]},
+  "heads_up":{"barangays":["lagundi","payao","darahuway-dako"],"sms_planned":12,"sms_skipped_demo":0,"mode":"dry_run"}},
+ "areas":[{"barangay_id":"lagundi","signal_level":2,"service_level":"level_iii","suggested_rank":1,"top_source":{"name":"Spring A","type":"spring"}},
+  {"barangay_id":"payao","signal_level":2,"service_level":"level_i","suggested_rank":2,"top_source":null},
+  {"barangay_id":"darahuway-dako","signal_level":2,"suggested_rank":3,"vulnerable_flag":true,"top_source":{"name":"Tanker","type":"tanker","is_simulated":true}},
+  {"barangay_id":"x","signal_level":2,"suggested_rank":4}]}

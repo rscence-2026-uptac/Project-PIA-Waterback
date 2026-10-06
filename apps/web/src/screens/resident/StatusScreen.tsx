@@ -6,7 +6,8 @@ import type { DisruptionDetail, BarangaySnapshot } from "../../data/mock";
 import { useBarangay } from "../../lib/barangay";
 import { readSetting, subscribeSetting, writeSetting } from "../../lib/settings";
 import { formatShortTime, formatTime, formatWindow, minutesBetween } from "../../lib/time";
-import { dropLook, waterState, type WaterState } from "../../lib/waterState";
+import { snapshotWaterState } from "../../lib/snapshotState";
+import { dropLook, type WaterState } from "../../lib/waterState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { Button, ButtonLink } from "../../ui/Button";
 import { DropGauge } from "../../ui/Drop";
@@ -14,6 +15,7 @@ import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { CostLabel, LiveStatusLabel, SafetyLabel, SimulatedLabel } from "../../ui/SourceBits";
 import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
+import { useAsOf } from "../../demo/clockState";
 import { ConnectionLine, ResidentHeader } from "./ResidentLayout";
 import { WaterBackView } from "./WaterBackView";
 
@@ -39,7 +41,7 @@ function StatusBody({ snapshot, signalLevel }: { snapshot: BarangaySnapshot; sig
   const { detail } = snapshot;
   if (detail.restored_at) return <WaterBackView snapshot={snapshot} />;
 
-  const state = waterState(signalLevel, detail.cause);
+  const state = snapshotWaterState(snapshot, signalLevel);
   const needsPlan = state !== "flowing";
   const pipedOff = state === "interrupted" || state === "repair";
 
@@ -101,24 +103,48 @@ function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDe
   );
 }
 
+/** "Now" for this screen: the demo clock when it is pinned to a replayed moment, else the real clock (ticking). */
 function useNow() {
-  const [now, setNow] = useState(() => new Date());
+  const { asOf, pinned } = useAsOf();
+  const [real, setReal] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000);
+    const id = setInterval(() => setReal(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
-  return now;
+  return pinned ? asOf : real;
+}
+
+const DAY_MS = 86_400_000;
+/** Whole calendar days from `now` to `date` (0 = same day, 1 = tomorrow). */
+function dayDiff(date: Date, now: Date) {
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((midnight(date) - midnight(now)) / DAY_MS);
+}
+
+/** "Thursday" in the resident's language (Waray borrows the Filipino day names). */
+function weekday(date: Date, language: string) {
+  return new Intl.DateTimeFormat(language === "english" ? "en-GB" : "fil-PH", { weekday: "long" }).format(date);
 }
 
 function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
-  const { t } = useCopy();
+  const { t, language } = useCopy();
   const now = useNow();
   const start = new Date(detail.window_start!);
   const end = new Date(detail.window_end!);
   const late = now >= end;
-  // "Tomorrow" only when the window hasn't started and begins on the next calendar day.
-  const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const isTomorrow = start > now && start.toDateString() === nextDay.toDateString();
+  const dayWord = (d: Date) => {
+    const n = dayDiff(d, now);
+    return n === 0 ? t("status.day_today") : n === 1 ? t("status.day_tomorrow") : weekday(d, language);
+  };
+  const sameDay = dayDiff(start, end) === 0;
+  const startIn = dayDiff(start, now);
+  const heading = !sameDay ? t("status.back_between_days")
+    : startIn <= 0 || start <= now ? t("status.back_between")
+    : startIn === 1 ? t("status.back_between_tomorrow")
+    : t("status.back_between_on", { day: weekday(start, language) });
+  const windowText = sameDay
+    ? formatWindow(start, end)
+    : `${dayWord(start)} ${formatShortTime(start)} – ${dayWord(end)} ${formatShortTime(end)}`;
   const minutesDry = detail.started_at ? Math.max(0, minutesBetween(detail.started_at, now)) : null;
   const hoursDry = minutesDry === null ? 0 : Math.round(minutesDry / 60);
 
@@ -132,10 +158,8 @@ function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
             : t("status.dry_hours", { n: hoursDry })}
         </p>
       )}
-      <p className="mt-4 text-[16px] font-bold">
-        {!isTomorrow ? t("status.back_between") : t("status.back_between_tomorrow")}
-      </p>
-      <p className="numeral mt-1 text-[44px] text-ink">{formatWindow(start, end)}</p>
+      <p className="mt-4 text-[16px] font-bold">{heading}</p>
+      <p className={`numeral mt-1 text-ink ${sameDay ? "text-[44px]" : "text-[30px] leading-tight"}`}>{windowText}</p>
       {late ? (
         <p className="mt-3 flex gap-2.5 text-[18px] font-bold text-ink">
           <Icon name="alert" size={22} className="mt-0.5 shrink-0" />

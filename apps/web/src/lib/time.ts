@@ -78,3 +78,18 @@ export function fromNow(hours: number): string {
   const half = 30 * 60_000;
   return new Date(Math.round((Date.now() + hours * 3_600_000) / half) * half).toISOString();
 }
+
+const manilaFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Manila", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+});
+const manilaDayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Manila", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+/** "6 Oct, 2:15 pm" in Asia/Manila, whatever this device's time zone is. */
+export function formatManila(date: Date | string): string {
+  return manilaFormat.format(new Date(date));
+}
+
+/** "Tuesday, 6 October 2026" in Asia/Manila. */
+export function formatManilaDay(date: Date | string): string {
+  return manilaDayFormat.format(new Date(date));
+}

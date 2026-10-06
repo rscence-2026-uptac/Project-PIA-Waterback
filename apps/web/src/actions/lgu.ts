@@ -1,19 +1,22 @@
 // SPEC: 06 — the one place that talks to Dev A's backend for the Action phase.
 // Every input is checked against the spec contract first, so the screens are already
-// producing valid data. Until the Edge Functions exist, each call stops with
-// BackendNotConnected and the screen shows its "not connected yet" state.
+// producing valid data. In live mode each call goes to its Edge Function; without Supabase env
+// vars it stops with BackendNotConnected and the screen shows its "not connected yet" state.
 //
-// Edge Functions (real names, per Dev A):
+// Edge Functions:
 //   confirm-allocation  -> confirmAllocation()
 //   deploy-response     -> deployResponse()
 //   notify-residents    -> notifyResidents()
 //
 // Step order is strict: confirm -> allocate -> deploy -> notify. The server answers 409 to a
-// call that skips a step. This file also checks the order on the client first, so the UI
-// never has to rely on the 409 as its normal path.
+// call that skips a step (the source of truth). In live mode the client does not pre-check the
+// order, so a reload mid-demo never blocks a step the server would accept; without a backend the
+// in-session guard below keeps the offline demo honest.
 import { z } from "zod";
+import { isLive } from "../api/client";
+import { ApiError } from "../api/http";
+import { postConfirmAllocation, postDeployResponse, postNotifyResidents } from "../api/endpoints";
 import { AllocationDecision, DeployResponse, NotificationPayload } from "../contracts/spec06";
-import { ApiError, backendConfigured, callFunction } from "../lib/api";
 
 export class BackendNotConnected extends Error {
   readonly fn: string;
@@ -54,13 +57,15 @@ export function canRun(disruptionId: string, fn: Exclude<EdgeFn, "confirm-alloca
 }
 
 /**
- * Single seam to Supabase. Not configured -> BackendNotConnected. A 409 (a step skipped) -> StepOutOfOrder.
+ * Single seam to Supabase. Not live -> BackendNotConnected. A 409 (a step skipped) -> StepOutOfOrder.
  * Returns the server's JSON answer so callers can show real counts.
  */
 async function callEdge<T = unknown>(fn: EdgeFn, body: unknown): Promise<T> {
-  if (!backendConfigured) throw new BackendNotConnected(fn);
+  if (!isLive()) throw new BackendNotConnected(fn);
   try {
-    return await callFunction<T>(fn, { body });
+    if (fn === "confirm-allocation") return (await postConfirmAllocation(body as AllocationDecision[])) as T;
+    if (fn === "deploy-response") return (await postDeployResponse(body as DeployResponse)) as T;
+    return (await postNotifyResidents(body as NotificationPayload[])) as T;
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) throw new StepOutOfOrder(fn);
     throw error;
@@ -78,7 +83,7 @@ export async function confirmAllocation(decisions: AllocationDecision[]): Promis
 /** Records which ranked source was actually sent to a barangay. */
 export async function deployResponse(response: DeployResponse): Promise<void> {
   DeployResponse.parse(response);
-  if (!canRun(response.disruption_id, "deploy-response")) throw new StepOutOfOrder("deploy-response");
+  if (!isLive() && !canRun(response.disruption_id, "deploy-response")) throw new StepOutOfOrder("deploy-response");
   await callEdge("deploy-response", response);
   markDone(response.disruption_id, "deployed");
 }
@@ -91,7 +96,7 @@ export interface NotifyResult {
 export async function notifyResidents(payloads: NotificationPayload[]): Promise<NotifyResult> {
   z.array(NotificationPayload).min(1).parse(payloads);
   const disruptionId = payloads[0].disruption_id;
-  if (!canRun(disruptionId, "notify-residents")) throw new StepOutOfOrder("notify-residents");
+  if (!isLive() && !canRun(disruptionId, "notify-residents")) throw new StepOutOfOrder("notify-residents");
   const result = await callEdge<NotifyResult>("notify-residents", payloads);
   markDone(disruptionId, "notified");
   return result;

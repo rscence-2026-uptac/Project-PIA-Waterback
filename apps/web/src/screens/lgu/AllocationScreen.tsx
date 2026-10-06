@@ -5,20 +5,23 @@
 // overridden_from_suggested_rank on the AllocationDecision.
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BackendNotConnected, StepOutOfOrder, confirmAllocation, notifyResidents } from "../../actions/lgu";
+import { useOpenEvent, type OpenEvent } from "../../api/allocation";
+import { confirmDisruption } from "../../api/endpoints";
+import { ApiError } from "../../api/http";
+import { useAsOf } from "../../demo/clockState";
 import { useCopy } from "../../copy/i18n";
 import type { AllocationDecision, NotificationPayload } from "../../contracts/spec06";
 import { DEPOT, FACILITY_WEIGHT, MAX_TIME_FACTOR, NO_ACCESS_WEIGHT, VULNERABLE_WEIGHT, type NeedRow } from "../../contracts/spec10";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
 import { FACILITIES_BY_BARANGAY, VULNERABLE_BY_BARANGAY, clustersFile } from "../../data/needInputs";
-import { AFFECTED, OFFICER, OPEN_EVENT, ROUTABLE } from "../../data/mockLgu";
-import { sourcesFor, type Cause } from "../../data/mock";
+import { OFFICER, ROUTABLE } from "../../data/mockLgu";
+import { sourcesFor } from "../../data/mock";
 import { SEED_SOURCES } from "../../data/seedSources";
-import { ApiError, backendConfigured } from "../../lib/api";
-import { useLiveSnapshot } from "../../realtime/liveApi";
 import { fetchDrivingRoute } from "../../lib/drivingRoute";
 import { countSafeMappedSources, pickDropPoints, scoreClusters } from "../../lib/need";
 import { formatDay, formatTime, formatWindow } from "../../lib/time";
 import { Button } from "../../ui/Button";
+import { ScreenStateView } from "../../ui/ScreenStateView";
 import { Icon } from "../../ui/Icon";
 import { LguLayout } from "./LguLayout";
 import { EarlyWarningPanel, TruckPanel, type RouteState } from "./NeedPanels";
@@ -30,23 +33,9 @@ const PriorityMap = lazy(() => import("./PriorityMap").then((m) => ({ default: m
 const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-// MOCK: the predictor signal level for the open event; every affected barangay carries the same one (spec 02).
-const EVENT_SIGNAL = Math.max(0, ...AFFECTED.map((a) => a.signal_level));
 const EARLY_WARNING_MIN_SIGNAL = 2; // SPEC: 10 — Tier 1 is warned at prediction, signal >= 2
 
 type SaveState = "idle" | "saving" | "saved" | "partial" | "not_connected" | "out_of_order" | "error";
-
-/** The disruption this screen acts on: the live open one when configured, else the MOCK sample event. */
-interface ActiveEvent {
-  disruption_id: string;
-  cause: Cause;
-  status: "predicted" | "confirmed" | "deployed" | "notified" | "resolved";
-  signal_level: number;
-  flagged_at: string;
-  window_start: string | null;
-  window_end: string | null;
-  likely_at: string | null;
-}
 
 /** "5:30 PM", or "Friday 5:30 PM" when it isn't today. */
 function whenLabel(iso: string): string {
@@ -71,21 +60,42 @@ function useNow(everyMs = 60_000) {
   return now;
 }
 
+/**
+ * Loads the open event through Dev A's live layer (api/allocation.ts, at the demo clock's as_of), then shows the
+ * spec 10 cluster ranking for it. The body is re-keyed so the officer's reordering resets when the disruption
+ * or the demo time changes.
+ */
 export function AllocationScreen() {
+  const { t } = useCopy();
+  const { asOfKey } = useAsOf();
+  const open = useOpenEvent();
+  if (open.data === null && (open.loading || open.error)) {
+    return (
+      <LguLayout>
+        <ScreenStateView state={open.error ? "error" : "loading"} onRetry={open.reload}>{() => null}</ScreenStateView>
+      </LguLayout>
+    );
+  }
+  const event = open.data;
+  if (!event) {
+    return (
+      <LguLayout>
+        <h1 className="text-[40px] leading-tight tracking-[-0.03em]">{t("lgu.title")}</h1>
+        <div className="mt-6 rounded-xl bg-mist p-6">
+          <h2 className="text-[24px]">{t("lgu.none_open_title")}</h2>
+          <p className="mt-2 text-ink-soft">{t("lgu.none_open_body")}</p>
+        </div>
+      </LguLayout>
+    );
+  }
+  return <AllocationBody key={`${event.disruption_id}-${asOfKey}`} event={event} reload={open.reload} />;
+}
+
+function AllocationBody({ event, reload }: { event: OpenEvent; reload: () => void }) {
   const { t } = useCopy();
   const now = useNow();
   const nowKey = Math.floor(now.getTime() / 60_000);
-  const liveFeed = useLiveSnapshot(5_000); // no-op when the backend isn't configured
-  const liveDisruption = backendConfigured ? liveFeed.data?.disruption ?? null : null;
-  const event: ActiveEvent | null = backendConfigured
-    ? liveDisruption && {
-        disruption_id: liveDisruption.id, cause: liveDisruption.cause, status: liveDisruption.status,
-        signal_level: liveDisruption.signal_level, flagged_at: liveDisruption.started_at,
-        window_start: liveDisruption.window_start ?? null, window_end: liveDisruption.window_end ?? null,
-        likely_at: liveDisruption.likely_at ?? null,
-      }
-    : { ...OPEN_EVENT, status: "confirmed", signal_level: EVENT_SIGNAL }; // MOCK: the sample event
-  const eventStart = event?.flagged_at ?? null;
+  const eventStart = event.flagged_at;
   const scored = useMemo(
     () => scoreClusters({
       clusters: clustersFile.clusters, barangays: clustersFile.barangays, sources: SEED_SOURCES,
@@ -118,20 +128,29 @@ export function AllocationScreen() {
   const served = new Set(clustersFile.barangays.filter((b) => b.served).map((b) => b.barangay_id));
   const servedOnly = (ids: string[]) => ids.filter((id) => served.has(id));
   const suggestedBarangays = servedOnly(barangayOrder([...scored].sort((x, y) => x.suggested_rank - y.suggested_rank)));
-  const decisions: AllocationDecision[] = event
-    ? servedOnly(barangayOrder(order)).map((barangayId, i) => {
-        const suggested = suggestedBarangays.indexOf(barangayId) + 1;
-        return {
-          disruption_id: event.disruption_id,
-          barangay_id: barangayId,
-          priority_rank: i + 1,
-          officer_id: OFFICER.id,
-          overridden_from_suggested_rank: suggested === i + 1 ? null : suggested,
-        };
-      })
-    : [];
+  const decisions: AllocationDecision[] = servedOnly(barangayOrder(order)).map((barangayId, i) => {
+    const suggested = suggestedBarangays.indexOf(barangayId) + 1;
+    return {
+      disruption_id: event.disruption_id,
+      barangay_id: barangayId,
+      priority_rank: i + 1,
+      officer_id: OFFICER.id,
+      overridden_from_suggested_rank: suggested === i + 1 ? null : suggested,
+    };
+  });
   const changes = decisions.filter((d) => d.overridden_from_suggested_rank !== null).length;
-  const waitingOnOperator = backendConfigured && event?.status === "predicted";
+  // Live and still only predicted: the officer confirms the disruption first (Dev A's disruption-monitor "confirm").
+  const needsConfirm = event.live && event.status === "predicted";
+  const [confirming, setConfirming] = useState<"idle" | "busy" | "error">("idle");
+  async function onConfirmEvent() {
+    setConfirming("busy");
+    try {
+      await confirmDisruption(event.disruption_id, OFFICER.id);
+      reload();
+    } catch {
+      setConfirming("error");
+    }
+  }
 
   function move(index: number, delta: -1 | 1) {
     const target = index + delta;
@@ -151,7 +170,6 @@ export function AllocationScreen() {
   }
 
   async function onConfirm() {
-    if (!event) return;
     setSave("saving");
     setOutcome(null);
     try {
@@ -230,26 +248,26 @@ export function AllocationScreen() {
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard tone="bg-coral-wash" icon="dropOff" label={t("lgu.what_happened")}
-          value={event ? t(`lgu.headline.${event.cause}`) : t("lgu.none_value")}
-          note={!event ? t("lgu.no_open")
-            : backendConfigured ? t("lgu.live_flagged", { time: whenLabel(event.flagged_at) })
-            : t("lgu.flagged_by", { who: OPEN_EVENT.flagged_by, time: formatTime(event.flagged_at) })} />
+          value={t(`lgu.headline.${event.cause}`)}
+          note={!event.flagged_at ? ""
+            : event.live ? t("lgu.live_flagged", { time: whenLabel(event.flagged_at) })
+            : t("lgu.flagged_by", { who: event.flagged_by, time: formatTime(event.flagged_at) })} />
         <SummaryCard tone="bg-sky" icon="drop" label={t("lgu.who_affected")}
           value={t("lgu.who_value", { n: fmt(totals.people) })}
           note={t("lgu.affected_sub_clusters", { clusters: totals.clusters, barangays: totals.barangays })} />
         <SummaryCard tone="bg-sky" icon="clock" label={t("lgu.expected_back")}
-          value={!event?.window_start || !event.window_end ? t("lgu.none_value")
+          value={!event.window_start || !event.window_end ? t("lgu.none_value")
             : new Date(event.window_start).toDateString() === new Date().toDateString() && new Date(event.window_end).toDateString() === new Date().toDateString()
               ? t("lgu.window_today", { window: formatWindow(event.window_start, event.window_end) })
               : t("lgu.window_span", { from: whenLabel(event.window_start), to: whenLabel(event.window_end) })}
-          note={event?.likely_at ? t("lgu.most_likely", { time: whenLabel(event.likely_at) }) : ""} />
+          note={event.likely_at ? t("lgu.most_likely", { time: whenLabel(event.likely_at) }) : ""} />
         <div className="rounded-xl bg-ink p-6 text-foam">
           {save === "saved" || save === "partial" ? (
             <div className="panel-in">
               <p className="text-[14px] font-bold text-sky">{t("lgu.decision_step", { n: 2, total: 2 })}</p>
               <p className="mt-2 font-display text-[26px] leading-tight">{t("lgu.decision_done_title")}</p>
               <p className="mt-2 text-[14px] text-sky">
-                {save === "partial" ? t("lgu.decision_partial_body") : backendConfigured ? t("lgu.decision_done_body_live") : t("lgu.decision_done_body")}
+                {save === "partial" ? t("lgu.decision_partial_body") : event.live ? t("lgu.decision_done_body_live") : t("lgu.decision_done_body")}
               </p>
             </div>
           ) : (
@@ -325,7 +343,7 @@ export function AllocationScreen() {
           </details>
           <p className="mt-4 text-[14px] text-ink-soft">{t("lgu.log_note")}</p>
 
-          {(event?.signal_level ?? 0) >= EARLY_WARNING_MIN_SIGNAL && !empty && <EarlyWarningPanel rows={scored} signal={event?.signal_level ?? 0} />}
+          {event.signal_level >= EARLY_WARNING_MIN_SIGNAL && !empty && <EarlyWarningPanel rows={scored} signal={event.signal_level} />}
         </section>
 
         <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
@@ -361,13 +379,19 @@ export function AllocationScreen() {
             <p className="mt-3 text-[14px] font-bold">
               {changes === 0 ? t("lgu.changes_none") : t("lgu.changes_some", { n: changes })}
             </p>
-            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving" || empty || !event || waitingOnOperator}>
+            {needsConfirm && (
+              <div className="mt-4 rounded-lg bg-ink-raised p-3">
+                <p className="font-bold">{t("lgu.confirm_event_title")}</p>
+                <p className="mt-1 text-[14px] text-sky">{t("lgu.confirm_event_body")}</p>
+                <Button variant="raised" className="mt-3 w-full" onClick={onConfirmEvent} disabled={confirming === "busy"}>
+                  {confirming === "busy" ? t("lgu.confirming") : t("lgu.confirm_event_button")}
+                </Button>
+                {confirming === "error" && <p role="alert" className="mt-2 text-[14px]">{t("app.error_body")}</p>}
+              </div>
+            )}
+            <Button variant="soft" className="mt-4 w-full" onClick={onConfirm} disabled={save === "saving" || empty || needsConfirm}>
               {save === "saving" ? t("lgu.saving") : t("lgu.confirm_button", { name: OFFICER.name })}
             </Button>
-            {backendConfigured && !event && liveFeed.data && (
-              <p className="mt-4 text-[14px] text-sky">{t("lgu.no_open")}</p>
-            )}
-            {waitingOnOperator && <p className="mt-4 text-[14px] text-sky">{t("lgu.not_confirmed_yet")}</p>}
             {(save === "saved" || save === "partial") && outcome && (
               <p role="status" className="panel-in mt-4 flex gap-2.5 rounded-lg bg-ink-raised p-3 text-[14px]">
                 <Icon name={save === "saved" ? "check" : "alert"} size={18} className="mt-0.5" />

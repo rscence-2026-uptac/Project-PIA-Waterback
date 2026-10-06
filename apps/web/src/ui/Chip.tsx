@@ -1,5 +1,6 @@
 // Status chips: colour + icon + word, never colour alone (DESIGN.md, Chips).
 import type { ReactNode } from "react";
+import { isLive } from "../api/client";
 import { useCopy } from "../copy/i18n";
 import type { WaterState } from "../lib/waterState";
 import { Icon, type IconName } from "./Icon";
@@ -26,6 +27,24 @@ export function Pill({ children, className = "" }: { children: ReactNode; classN
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[14px] font-bold leading-none ${className}`}>
       {children}
+    </span>
+  );
+}
+
+/**
+ * Marks a figure or block that has no backend data yet. Shown only in live mode: when the whole app runs on
+ * sample data, everything is a sample and a chip on every block would be noise. `always` forces it.
+ */
+export function SampleChip({ always = false, className = "" }: { always?: boolean; className?: string }) {
+  const { t } = useCopy();
+  if (!always && !isLive()) return null;
+  return (
+    <span
+      title={t("sample.note")}
+      className={`inline-flex items-center gap-1 rounded-full border-[1.5px] border-haze px-2 py-0.5 text-[13px] font-bold leading-none text-ink ${className}`}
+    >
+      <Icon name="alert" size={14} />
+      {t("sample.chip")}
     </span>
   );
 }

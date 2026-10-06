@@ -1,5 +1,6 @@
 // SPEC: 06 (AC5 allocation log) + MEM-1 post-event record (wireframe p.11).
 // "Hours without piped water" is MEM-2 (spec 07's trend view), drawn here because it's on this page.
+import { isLive } from "../../api/client";
 import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
@@ -8,6 +9,7 @@ import { formatDuration, formatLongDate, formatTime, minutesBetween } from "../.
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { LguLayout } from "./LguLayout";
+import { LiveEventRecord } from "./LiveEventRecord";
 
 const TIMELINE_DOT: Record<TimelineKind, string> = {
   predicted: "bg-coral",
@@ -26,7 +28,12 @@ const ALLOC_KEY: Record<(typeof CLOSED_EVENT.allocation_log)[number]["kind"], Co
   closed: "alloc.closed",
 };
 
+/** Live mode shows the real record from the backend; otherwise the wireframe sample. */
 export function EventRecordScreen() {
+  return isLive() ? <LiveEventRecord /> : <SampleEventRecord />;
+}
+
+function SampleEventRecord() {
   const { t } = useCopy();
   const e = CLOSED_EVENT;
   const duration = minutesBetween(e.started_at, e.restored_at);

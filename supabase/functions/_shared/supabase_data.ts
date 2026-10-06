@@ -4,6 +4,7 @@ import type { FetchData } from "./handler.ts";
 import type { BarangayRow } from "./affected.ts";
 import type { DisruptionRow, DisruptionStore, EventInsert } from "./disruption_monitor.ts";
 import type { EventRow } from "./dashboard_snapshot.ts";
+import type { HeadsUpStore } from "./heads_up.ts";
 
 export type SupabaseLike = { from(table: string): any };
 const PAGE = 1000;
@@ -63,9 +64,10 @@ export function makeDisruptionStore(supabase: SupabaseLike): DisruptionStore {
     insert: async (row) => (await one(supabase.from("disruptions").insert(row).select(DISRUPTION_COLS).single()))!,
     update: async (id, patch) => (await one(supabase.from("disruptions").update(patch).eq("id", id).select(DISRUPTION_COLS).single()))!,
     hasEvent: async (id, type) => {
-      const { data, error } = await supabase.from("event_log").select("id").eq("disruption_id", id).eq("event_type", type).limit(1);
+      // System-wide rows only: per-barangay 'predicted' rows are heads-ups (heads_up.ts), not the lifecycle event.
+      const { data, error } = await supabase.from("event_log").select("id,barangay_id").eq("disruption_id", id).eq("event_type", type);
       if (error) throw new Error(error.message);
-      return (data ?? []).length > 0;
+      return (data ?? []).some((r: any) => r.barangay_id == null);
     },
     logEvent: async (e: EventInsert) => {
       const { error } = await supabase.from("event_log").insert(e);
@@ -83,4 +85,24 @@ export async function fetchEvents(supabase: SupabaseLike, disruptionId: string):
 export async function fetchServed(supabase: SupabaseLike): Promise<{ barangay_id: string; service_level: "level_iii" | "level_i" }[]> {
   return await fetchAll<any>((a, b) => supabase.from("barangays").select("barangay_id,service_level")
     .neq("service_level", "unserved").order("barangay_id").range(a, b));
+}
+
+export function makeHeadsUpStore(supabase: SupabaseLike): HeadsUpStore {
+  const insert = async (table: string, rows: unknown[]) => {
+    if (!rows.length) return;
+    const { error } = await supabase.from(table).insert(rows);
+    if (error) throw new Error(error.message);
+  };
+  return {
+    listBarangays: () => fetchAll<any>((a, b) => supabase.from("barangays").select("barangay_id,name,wsp_name,service_level").order("barangay_id").range(a, b)),
+    listHeadsUps: async (disruptionId) => {
+      const rows = await fetchAll<any>((a, b) => supabase.from("event_log").select("id,barangay_id,payload_json")
+        .eq("disruption_id", disruptionId).eq("event_type", "predicted").order("id").range(a, b));
+      return rows.filter((r) => r.barangay_id != null && r.payload_json?.kind === "heads_up")
+        .map((r) => ({ barangay_id: r.barangay_id as string, level: Number(r.payload_json.level) }));
+    },
+    listResidents: () => fetchAll<any>((a, b) => supabase.from("residents").select("id,barangay_id,phone,preferred_language,channel").order("id").range(a, b)),
+    insertEvents: (rows) => insert("event_log", rows),
+    insertSmsOutbox: (rows) => insert("sms_outbox", rows),
+  };
 }

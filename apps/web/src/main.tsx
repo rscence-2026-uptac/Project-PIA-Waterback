@@ -5,6 +5,8 @@ import "@fontsource-variable/bricolage-grotesque/wght.css";
 import "@fontsource/atkinson-hyperlegible/400.css";
 import "@fontsource/atkinson-hyperlegible/700.css";
 import "./index.css";
+import { DemoClockControl, DemoClockProvider } from "./demo/clock";
+import { startSync } from "./offline/sync";
 import { ResidentLayout } from "./screens/resident/ResidentLayout";
 import { StatusScreen } from "./screens/resident/StatusScreen";
 import { SourcesScreen } from "./screens/resident/SourcesScreen";
@@ -13,7 +15,6 @@ import { SettingsScreen } from "./screens/resident/SettingsScreen";
 import { FixedLanguage } from "./copy/FixedLanguage";
 import { NotFoundScreen, RouteErrorScreen } from "./screens/NotFoundScreen";
 import { useCopy } from "./copy/i18n";
-import { startSync } from "./offline/sync";
 
 // Staff screens load on demand, so residents' phones don't download them.
 const CaptainScreen = lazy(() => import("./screens/captain/CaptainScreen").then((m) => ({ default: m.CaptainScreen })));
@@ -35,9 +36,6 @@ function Lazy({ children }: { children: React.ReactNode }) {
 // Spec 08: warn in dev if any SMS template no longer fits one GSM-7 segment.
 if (import.meta.env.DEV) void import("./copy/sms");
 
-// SPEC: 05 — send the offline queue to the backend (no-op when the backend isn't configured).
-startSync();
-
 const router = createBrowserRouter([
   {
     element: <ResidentLayout />,
@@ -48,6 +46,11 @@ const router = createBrowserRouter([
       { path: "/history", element: <HistoryScreen /> },
       { path: "/settings", element: <SettingsScreen /> },
     ],
+  },
+  // Stage demo only: a simulated handset (SMS inbox + reply keypad). Lazy, not linked from the resident nav.
+  {
+    path: "/demo/phone",
+    lazy: async () => ({ Component: (await import("./screens/demo/PhoneScreen")).PhoneScreen }),
   },
   { path: "/captain", element: <Lazy><CaptainScreen /></Lazy> },
   { path: "/operator", element: <Lazy><OperatorScreen /></Lazy> },
@@ -61,8 +64,14 @@ const router = createBrowserRouter([
   { path: "*", element: <NotFoundScreen />, errorElement: <RouteErrorScreen /> },
 ]);
 
+// SPEC: 05 — push the offline queue now and on every "online" event (no-op when the backend isn't live).
+startSync();
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <DemoClockProvider>
+      <RouterProvider router={router} />
+      <DemoClockControl />
+    </DemoClockProvider>
   </StrictMode>,
 );

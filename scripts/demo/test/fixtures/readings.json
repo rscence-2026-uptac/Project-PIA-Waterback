@@ -1,0 +1,6 @@
+[{"barangay_id":"kulador","recorded_at":"2026-07-21T13:00:00+00:00","turbidity_ntu":240,"plant_status":"degraded"},
+ {"barangay_id":"kulador","recorded_at":"2026-07-21T14:00:00+00:00","turbidity_ntu":260,"plant_status":"degraded"},
+ {"barangay_id":"caramayon_1","recorded_at":"2026-07-21T20:00:00+00:00","turbidity_ntu":120,"plant_status":"shutdown"},
+ {"barangay_id":"caramayon_2","recorded_at":"2026-07-21T20:00:00+00:00","turbidity_ntu":100,"plant_status":"shutdown"},
+ {"barangay_id":"caramayon_1","recorded_at":"2026-07-22T02:00:00+00:00","turbidity_ntu":540,"plant_status":"shutdown"},
+ {"barangay_id":"caramayon_2","recorded_at":"2026-07-22T02:00:00+00:00","turbidity_ntu":100,"plant_status":"normal"}]

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AffectedArea } from "../../../packages/shared-types/src/index.ts";
-import { buildAffectedAreas, handleAffectedAreas } from "../../functions/_shared/affected.ts";
+import { buildAffectedAreas, handleAffectedAreas, interruptionObserved, latestKuladorStatus } from "../../functions/_shared/affected.ts";
 import type { BarangayRow } from "../../functions/_shared/affected.ts";
 import { buildSnapshot, handleSnapshot, statusAfter } from "../../functions/_shared/dashboard_snapshot.ts";
 import type { EventRow } from "../../functions/_shared/dashboard_snapshot.ts";
@@ -25,6 +25,8 @@ const stormData = async (_f: Date, to: Date) => ({
   readings: kuladorSeries(to.getTime(), 240, (h) => ({ turbidity_ntu: h < 8 ? 650 - h * 70 : 4, plant_status: "degraded" as const })),
   rainHourly: rainSeries(to.getTime(), 90 * 24, (h) => (h < 24 ? 12 : 0.1)), forecastHourly: forecastSeries(to.getTime(), 4),
 });
+// Same storm but the plant still reports normal (the July replay: signal 3 predicted, water not yet off).
+const stormPlantNormal = async (f: Date, to: Date) => { const d = await stormData(f, to); return { ...d, readings: d.readings.map((r) => ({ ...r, plant_status: "normal" as const })) }; };
 const noLive = async () => { throw new Error("no network"); };
 
 const withBarangays = (patch: Record<string, Partial<BarangayRow>>) => BARANGAYS.map((b) => ({ ...b, ...(patch[b.barangay_id] ?? {}) }));
@@ -44,7 +46,7 @@ describe("fixtures", () => {
 describe("spec 03 buildAffectedAreas", () => {
   const ctx = (signal_level: number, extra = {}) => ({ signal_level, cause: "turbidity" as const, disruption_id: U, ...extra });
   it("signal >= 2: returns all 57; all 26 served inherit the signal", () => {
-    const out = buildAffectedAreas(BARANGAYS, ctx(3, { min_signal: 2 }));
+    const out = buildAffectedAreas(BARANGAYS, ctx(3, { min_signal: 2, interruption_observed: true }));
     expect(out).toHaveLength(57);
     const served = out.filter((a) => a.service_level !== "unserved");
     expect(served).toHaveLength(26);
@@ -61,8 +63,14 @@ describe("spec 03 buildAffectedAreas", () => {
     expect(un(4).every((a) => a.heads_up && a.piped_households_affected === null && a.coverage_confidence === "unknown")).toBe(true);
   });
   it("repair cause -> planned_repair for served; signal 1-2 -> heads_up", () => {
-    expect(buildAffectedAreas(BARANGAYS, { ...ctx(4), cause: "repair" }).find((a) => a.service_level === "level_iii")!.resident_state).toBe("planned_repair");
+    expect(buildAffectedAreas(BARANGAYS, { ...ctx(4, { interruption_observed: true }), cause: "repair" }).find((a) => a.service_level === "level_iii")!.resident_state).toBe("planned_repair");
     expect(buildAffectedAreas(BARANGAYS, ctx(2)).find((a) => a.service_level === "level_iii")!.resident_state).toBe("heads_up");
+  });
+  it("v2: signal 3 with no observed interruption is a heads-up with urgency, never interrupted", () => {
+    const served = buildAffectedAreas(BARANGAYS, ctx(3)).filter((a) => a.service_level !== "unserved");
+    expect(served.every((a) => a.resident_state === "heads_up" && a.heads_up && a.heads_up_urgency === "very_likely")).toBe(true);
+    expect(buildAffectedAreas(BARANGAYS, ctx(1)).find((a) => a.service_level === "level_iii")!.heads_up_urgency).toBe("possible");
+    expect(buildAffectedAreas(BARANGAYS, ctx(0)).every((a) => a.heads_up_urgency === undefined)).toBe(true);
   });
   it("null counts or unknown source -> coverage unknown, no guessed numbers", () => {
     const out = buildAffectedAreas(withBarangays({ maulong: { piped_households: 100, unpiped_households: null, coverage_source: "estimate" },
@@ -116,11 +124,32 @@ describe("affected-areas handler", () => {
     expect((await get(`http://x/f?disruption_id=${U}`)).status).toBe(404);
   });
   it("storm: returns 57 rows, open disruption id + its cause used", async () => {
-    const open = { id: U, cause: "repair" };
+    const open = { id: U, cause: "repair", status: "confirmed" };
     const rows = await (await get("http://x/f?as_of=2026-07-10T04:00:00Z&min_signal=2", deps(stormData, open))).json();
     expect(rows).toHaveLength(57);
     expect(rows.every((r: any) => r.disruption_id === U)).toBe(true);
     expect(rows.find((r: any) => r.service_level === "level_iii").resident_state).toBe("planned_repair"); // cause comes from the disruption, not the model
+  });
+  it("v2 handler: storm prediction alone = heads_up; confirmed disruption or degraded Kulador = interrupted", async () => {
+    const q = "http://x/f?as_of=2026-07-10T04:00:00Z";
+    const lvl3 = async (d: any) => (await (await get(q, d)).json()).find((r: any) => r.service_level === "level_iii");
+    const open = (status: string) => ({ id: U, cause: "turbidity", status });
+    expect(await lvl3(deps(stormPlantNormal, open("predicted")))).toMatchObject({ resident_state: "heads_up", heads_up: true, heads_up_urgency: "very_likely" });
+    expect((await lvl3(deps(stormPlantNormal, open("confirmed")))).resident_state).toBe("interrupted");
+    expect((await lvl3(deps(stormPlantNormal, null))).resident_state).toBe("heads_up"); // no disruption row at all: still a prediction
+    expect((await lvl3(deps(stormData, open("predicted")))).resident_state).toBe("interrupted"); // Kulador plant_status degraded at as_of
+  });
+  it("interruptionObserved / latestKuladorStatus", () => {
+    expect(interruptionObserved("predicted", "normal")).toBe(false);
+    expect(interruptionObserved("predicted", null)).toBe(false);
+    expect(interruptionObserved(undefined, undefined)).toBe(false);
+    expect(interruptionObserved("resolved", "normal")).toBe(false);
+    for (const st of ["confirmed", "deployed", "notified"]) expect(interruptionObserved(st, "normal")).toBe(true);
+    for (const pl of ["degraded", "shutdown"]) expect(interruptionObserved("predicted", pl)).toBe(true);
+    const r = (t: string, intake: string, s: string) => ({ recorded_at: t, intake_id: intake, plant_status: s });
+    const rs = [r("2026-07-10T01:00:00Z", "kulador", "degraded"), r("2026-07-10T02:00:00Z", "kulador", "normal"), r("2026-07-10T03:00:00Z", "caramayon_1", "shutdown"), r("2026-07-10T09:00:00Z", "kulador", "shutdown")];
+    expect(latestKuladorStatus(rs, new Date("2026-07-10T04:00:00Z"))).toBe("normal");
+    expect(latestKuladorStatus(rs, new Date("2026-07-10T00:00:00Z"))).toBeNull();
   });
   it("calm: min_signal=2 -> [], no min_signal -> 57 rows with null disruption_id", async () => {
     expect(await (await get("http://x/f?min_signal=2", deps(calmData))).json()).toEqual([]);
@@ -300,6 +329,17 @@ describe("spec 07 dashboard snapshot", () => {
     const empty = buildSnapshot(served, { ...disruption, status: "predicted" }, [], NOW);
     expect(row(empty, "payao")).toMatchObject({ status: "predicted", last_event_at: disruption.started_at });
   });
+  it("v2: prediction-only signal 4 -> heads_up very_likely; degraded plant or confirmed card -> interrupted", () => {
+    const pred = { ...disruption, status: "predicted" as const };
+    const a = buildSnapshot(served, pred, [], NOW);
+    expect(row(a, "payao")).toMatchObject({ resident_state: "heads_up", heads_up_urgency: "very_likely", signal_level: 4 });
+    const b = buildSnapshot(served, pred, [], NOW, { plant_status: "degraded" });
+    expect(row(b, "payao").resident_state).toBe("interrupted");
+    expect(row(b, "payao").heads_up_urgency).toBeUndefined();
+    const c = buildSnapshot(served, pred, [ev("deployed", "2026-07-10T04:00:00.000Z", "payao")], NOW, { plant_status: "normal" });
+    expect(row(c, "payao").resident_state).toBe("interrupted");
+    expect(row(c, "maulong").resident_state).toBe("heads_up");
+  });
   it("heads-up phase: signal 2 -> resident_state heads_up", () => {
     const s = buildSnapshot(served, { ...disruption, signal_level: 2, status: "predicted" }, [], NOW);
     expect(row(s, "payao").resident_state).toBe("heads_up");
@@ -315,6 +355,27 @@ describe("spec 07 dashboard snapshot", () => {
       status: z.enum(["predicted", "confirmed", "deployed", "notified", "resolved"]), last_event_at: z.string().datetime() })), generated_at: z.string().datetime() });
     expect(Snap.parse(buildSnapshot(served, disruption, [ev("deployed", "2026-07-10T04:00:00.000Z", "payao")], NOW)).barangays).toHaveLength(26);
     expect(Snap.parse(buildSnapshot(served, null, [], NOW)).barangays).toHaveLength(26);
+  });
+  it("handler as_of: plant status read at as_of, events cut at as_of, generated_at = as_of; live_events=1 keeps later events", async () => {
+    const evs: EventRow[] = [ev("confirmed", "2026-07-10T03:00:00.000Z"), ev("notified", "2026-07-10T05:00:00.000Z", "payao")];
+    const seen: Date[] = [];
+    const deps = { fetchServed: async () => served, findOpen: async () => ({ ...disruption, status: "predicted" }), fetchEvents: async () => evs,
+      fetchPlantStatus: async (at: Date) => { seen.push(at); return at.toISOString() >= "2026-07-10T04:00:00.000Z" ? "degraded" : "normal"; }, now: () => NOW };
+    const get = async (qs: string) => (await handleSnapshot(new Request(`http://x/f${qs}`), deps)).json();
+    const early = await get("?as_of=2026-07-10T11:00:00%2B08:00"); // 03:00Z: confirmed counts, notified (05:00Z) does not; plant normal
+    expect(early.generated_at).toBe("2026-07-10T03:00:00.000Z");
+    expect(early.barangays.find((b: any) => b.barangay_id === "payao")).toMatchObject({ status: "confirmed", resident_state: "interrupted" });
+    expect(seen.at(-1)!.toISOString()).toBe("2026-07-10T03:00:00.000Z");
+    const before = await get("?as_of=2026-07-10T09:00:00%2B08:00"); // 01:00Z: no events yet, plant normal -> heads-up, not interrupted
+    expect(before.barangays.find((b: any) => b.barangay_id === "payao")).toMatchObject({ status: "predicted", resident_state: "heads_up" });
+    const late = await get("?as_of=2026-07-10T14:00:00%2B08:00"); // 06:00Z: everything counts, plant degraded
+    expect(late.barangays.find((b: any) => b.barangay_id === "payao")).toMatchObject({ status: "notified" });
+    const live = await get("?as_of=2026-07-10T09:00:00%2B08:00&live_events=1"); // as_of before the events, but live_events keeps them
+    expect(live.generated_at).toBe("2026-07-10T01:00:00.000Z");
+    expect(live.barangays.find((b: any) => b.barangay_id === "payao")).toMatchObject({ status: "notified" });
+    const def = await get(""); // default = now, unchanged behaviour
+    expect(def.generated_at).toBe(NOW.toISOString());
+    expect((await handleSnapshot(new Request("http://x/f?as_of=yesterday"), deps)).status).toBe(400);
   });
   it("handler over the supabase data layer (fake client): only served barangays, newest open disruption, its events", async () => {
     const db = new FakeSupabase({

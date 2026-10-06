@@ -17,3 +17,7 @@ supabase/.branches/
 
 # WorldPop raw GeoTIFFs (one-time download, not committed)
 data/population/raw/
+
+# build output / archives (never commit)
+/dist/
+*.zip

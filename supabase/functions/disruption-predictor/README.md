@@ -43,6 +43,87 @@ const out = PredictorOutput.parse(await res.json());
 | `fallback_used` | `true` if at least one hazard used the deterministic rule because a model input was missing. Show it as "reduced confidence". |
 | `forecast_source` | `"seeded"` (rows from `rain_forecast_hourly`), `"live"` (Open-Meteo call) or `"missing"` (no forecast, turbidity used its fallback). Optional in the zod schema, always present from this function. |
 
+### Why and what to do: `drivers` and `operator_actions` (optional, added 2026-10-06)
+
+Both fields are optional in the zod schema, so older clients keep working. They are always present from this function.
+
+- `drivers.turbidity` / `drivers.drought`: one entry per model feature, `{feature, value, unit, contribution, share, text}`, sorted by `contribution` descending. `contribution = weight x value` in log-odds, so `baseline + sum(contribution) == logit(p)` (exact to 1e-9). `share` is the fraction of the sum of the **positive** contributions (0 for protective features such as a full reservoir). `text` is a plain-language sentence for the UI. The drought model has a large positive bias (+4.24) offset by a negative reservoir term, so on a healthy day its drivers are all negative and `baseline` carries the story.
+- `drivers.baseline`: the model bias (`turbidity`, `drought`). A key is absent for a model that fell back.
+- Fallback: the model's list is `[{"feature": "wsp_rule", "text": "<which rule fired>"}]` (no value/contribution) and there is no baseline for it. When Caramayon I >= 500 NTU forces level 4, a `wsp_rule` entry citing p.43 is put first and the model drivers follow.
+- `operator_actions`: `[{action, source, when}]` chosen from the two levels and the top driver. `source` is a WSP page (`"WSP p.44"`) or `"PIA WaterBack recommendation"` for anything the WSP does not say. Level 0-1: empty. Turbidity >= 2: pre-dose PAC/polymer + caustic soda at Kulador (p.44), top up the 440 m3 reservoir (p.13), check the Caramayon standby generator fuel (p.43), filter bags and chlorination (p.44), plus one PIA line keyed to the top driver. Turbidity 4: "if Caramayon I reads >= 500 NTU, temporary shut-off" (p.43). Drought >= 2: reservoir usable volume 340 m3 / 100 m3 fire reserve (p.13), booster pumps in the low-pressure zones (pp.27-28), and a conservation advisory labelled as a PIA recommendation (the WSP has no drought or rationing procedure).
+
+Example, `as_of=2026-07-22T12:00:00+08:00` (abridged: first drivers / actions only):
+
+```json
+{
+  "scope": "system",
+  "p_turbidity": 0.9995,
+  "p_drought": 0.0194,
+  "turbidity_level": 4,
+  "drought_level": 0,
+  "signal_level": 4,
+  "computed_at": "2026-07-22T04:00:00.000Z",
+  "fallback_used": false,
+  "forecast_source": "seeded",
+  "drivers": {
+    "turbidity": [
+      {
+        "feature": "forecast_rain_48h_mm",
+        "value": 41.3,
+        "unit": "mm",
+        "contribution": 8.3601,
+        "share": 0.784,
+        "text": "41 mm of rain forecast in the next 48 h"
+      },
+      {
+        "feature": "rain_24h_mm",
+        "value": 11.2,
+        "unit": "mm",
+        "contribution": 1.1202,
+        "share": 0.105,
+        "text": "11 mm of rain fell in the last 24 h"
+      }
+    ],
+    "drought": [
+      {
+        "feature": "days_since_rain_over_5mm",
+        "value": 1,
+        "unit": "days",
+        "contribution": 0.0631,
+        "share": 1,
+        "text": "1 day since a day with 5 mm or more of rain"
+      }
+    ],
+    "baseline": {
+      "turbidity": -3.0683,
+      "drought": 4.2376
+    }
+  },
+  "operator_actions": [
+    {
+      "action": "Pre-dose PAC/polymer and caustic soda at Kulador before the turbidity peak arrives",
+      "source": "WSP p.44",
+      "when": "turbidity_level>=2"
+    },
+    {
+      "action": "Top up the 440 m3 reservoir (Brgy. 13) before intake turbidity rises",
+      "source": "WSP p.13",
+      "when": "turbidity_level>=2"
+    },
+    {
+      "action": "Rain is the main driver: check stock of PAC, polymer and caustic soda covers the forecast rain window",
+      "source": "PIA WaterBack recommendation",
+      "when": "turbidity_level>=2; top driver forecast_rain_48h_mm"
+    },
+    {
+      "action": "If Caramayon I reads 500 NTU or above: temporary shut-off of that source",
+      "source": "WSP p.43",
+      "when": "turbidity_level>=4"
+    }
+  ]
+}
+```
+
 ### How `signal_level` is derived
 
 `level` from probability (lower bound inclusive): `p < 0.2` -> 0, `0.2-0.4` -> 1, `0.4-0.6` -> 2, `0.6-0.8` -> 3, `p >= 0.8` -> 4 (`toSignalLevel` in shared-types). Then `signal_level = max(turbidity_level, drought_level)`. One hard rule overrides the model: Caramayon I >= 500 NTU in the last 24 h (WSP p.43 source shut-off) forces `turbidity_level = 4`.
@@ -94,6 +175,8 @@ Writes `_shared/model.generated.ts` and `_shared/constants.generated.ts` (never 
 ```
 bash supabase/tests/run_local.sh                         # local pia_dev: migrations + seeds + SQL checks, prints ALL PASS
 cd supabase/tests/functions && npm install && npm test   # unit + parity (ml/predictor_test_vectors.json) + e2e on pia_dev
+# July 2026 hourly timeline (real predict() over the seed) -> ml/reports/july_2026_timeline.json, prints episodes + lead times:
+cd supabase/tests/functions && EXPORT_TIMELINE=1 PGDATABASE=pia_dev npx vitest run export_timeline
 ```
 
 ## Deploy (user runs these)

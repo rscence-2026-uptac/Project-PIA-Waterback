@@ -7,6 +7,8 @@
 //   operator readings ............ spec 01 seed data
 // Names, counts and readings are sample data, as the wireframes say.
 import type { BarangayStatusView } from "../contracts/spec05";
+import type { PredictorOutput } from "../contracts/predictor";
+import type { ResidentStateName } from "../contracts/spec03";
 import type { RankedSource } from "../contracts/spec04";
 import { rankSeedSources, toBackupSource } from "../lib/backupSource";
 import { fromNow } from "../lib/time";
@@ -70,12 +72,14 @@ export interface CaptainSource {
 export interface CaptainDay {
   name: string;
   households_reached: number;
-  delivered: number;
+  delivered: number | null; // live: outbound SMS logged for this barangay (sms_outbox); null = log unavailable
   to_working: number;
   checks_today: number;
   thanks: { quote: string; who: string; at: string }[];
   more_thanks: number;
   sources: CaptainSource[];
+  /** True when built from the backend: only `sources` (ranked chain / sources table) and `delivered` (sms_outbox) are real. */
+  live?: boolean;
 }
 
 export interface StoragePlan {
@@ -91,6 +95,15 @@ export interface BarangaySnapshot {
   sources: BackupSource[];
   storage: StoragePlan;
   captain: CaptainDay;
+  // Live-mode extras (absent on the sample snapshot). The resident-state mockup and the operator "why" panel read these.
+  live?: boolean; // built from the Edge Functions, not from sample data
+  resident_state?: ResidentStateName; // from affected-areas / dashboard-snapshot
+  heads_up_urgency?: "possible" | "likely" | "very_likely";
+  interruption_observed?: boolean; // disruption confirmed/deployed/notified: water has actually stopped
+  prediction?: PredictorOutput | null; // spec 02 output at as_of, incl. drivers and operator_actions
+  status_label?: "predicted" | "confirmed" | "deployed" | "notified" | "resolved" | null; // this barangay's lifecycle card status
+  as_of?: string; // the demo clock instant this snapshot was read at
+  vulnerable_households?: number; // captain heads-up card; no live endpoint returns it yet
 }
 
 // Every Catbalogan barangay (data/barangays.ts, official PSGC names). `name` is the short form
@@ -214,6 +227,8 @@ export function mockSnapshot(barangayId: string): BarangaySnapshot | null {
       last_synced_at: new Date().toISOString(),
     },
     detail,
+    // The sample scenario is an observed outage at signal 3-4 (the server rule, specs/03).
+    interruption_observed: !resolved && system.signal_level >= 3,
     sources: sourcesFor(barangayId, detail.cause),
     storage: STORAGE,
     captain: captainFor(barangay.name),

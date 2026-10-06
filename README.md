@@ -2,6 +2,43 @@
 
 Backend: `supabase/` (migrations, seeds, Edge Functions; see `supabase/functions/README.md`). Stage driver: `scripts/demo/README.md`.
 
+## Run locally
+
+**Web app** (`apps/web`, Node 20+):
+```
+cd apps/web && npm install
+npm run dev          # http://localhost:5173
+npm run build && npm run lint
+```
+- Mocks (default): with no env vars every screen runs on the sample data in `apps/web/src/data`. Nothing to configure.
+- Live: create `apps/web/.env.local` (gitignored) with `VITE_SUPABASE_URL=https://<ref>.supabase.co` and `VITE_SUPABASE_ANON_KEY=<anon key>` (`supabase projects api-keys --project-ref <ref>`). Anon key only; never put the service-role key in the app. Add `?demo=1` to a URL for the demo clock control. Details: `apps/web/README.md`, "Live mode & demo clock".
+
+**Stage driver** (`scripts/demo`, needs the service role, kept in memory only):
+```
+cd scripts/demo && npm install
+node demo.mjs status --from-cli            # --from-cli fetches the keys with the Supabase CLI (logged in, project linked)
+node demo.mjs replay --scenario late-july --dry --from-cli
+node --test test/*.test.mjs                # offline checks
+```
+See `scripts/demo/README.md` for the full rehearsal.
+
+**Database tests** (local Postgres; drops and recreates `pia_dev`):
+```
+PGUSER=$USER supabase/tests/run_local.sh   # stub -> migrations -> seeds -> smoke, RLS, seed checks; ends with ALL PASS
+```
+
+**Edge Function and shared-types tests:**
+```
+cd supabase/tests/functions && npm install && npx vitest run
+cd packages/shared-types   && npm install && npx vitest run
+```
+
+**ML predictor** (Python 3.13 or 3.14):
+```
+cd ml && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+.venv/bin/python test_train_predictor.py && .venv/bin/python test_constants_parity.py && .venv/bin/python test_simulate_july.py
+```
+
 ## SMS demo (simulated handset)
 
 Zero cost, no carrier: every SMS the backend would send is written to the `sms_outbox` table, and a phone mockup shows it live through Realtime. The resident "replies" by calling `sms-webhook` in demo mode. Nothing is ever sent to a real number (`SMS_LIVE` stays unset).
