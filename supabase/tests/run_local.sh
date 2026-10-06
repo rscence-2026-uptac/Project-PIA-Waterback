@@ -12,7 +12,7 @@ for f in $(ls supabase/migrations/*.sql | sort); do files+=("$f"); done
 # seed files in the order given by [db.seed] sql_paths in supabase/config.toml
 while IFS= read -r f; do files+=("supabase/${f#./}"); done < <(
   grep -E '^sql_paths' supabase/config.toml | grep -oE '"[^"]+"' | tr -d '"')
-files+=(supabase/tests/001_smoke.sql supabase/tests/002_rls.sql supabase/tests/003_seed_checks.sql)
+files+=(supabase/tests/001_smoke.sql supabase/tests/002_rls.sql supabase/tests/003_seed_checks.sql supabase/tests/004_sources_checks.sql)
 for f in "${files[@]}"; do
   echo "== $f"; psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
 done

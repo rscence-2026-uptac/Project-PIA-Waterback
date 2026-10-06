@@ -16,6 +16,9 @@ const cases: [string, z.ZodTypeAny, unknown, unknown][] = [
   ["Source", T.Source,
     { id: U, barangay_id: "p1", name: "Refill", type: "refill_station", safety_score: 0.9, travel_minutes: 10, cost_php_per_unit: 5, active: true },
     { id: U, barangay_id: "p1", name: "Refill", type: "well", safety_score: 0.9, travel_minutes: 10, cost_php_per_unit: 5, active: true }],
+  ["Source (provenance)", T.Source,
+    { id: U, barangay_id: "p1", name: "Refill", type: "refill_station", safety_score: 0.9, travel_minutes: 10, cost_php_per_unit: 25, active: true, provenance: "osm", source_ref: "https://www.openstreetmap.org/node/1", is_simulated: false, lat: 11.77, lng: 124.88 },
+    { id: U, barangay_id: "p1", name: "Refill", type: "refill_station", safety_score: 0.9, travel_minutes: 10, cost_php_per_unit: 25, active: true, provenance: "guess", is_simulated: false }],
   ["ContinuityChain", T.ContinuityChain,
     { id: U, barangay_id: "p1", disruption_id: U, ranked_source_ids: [U2], computed_at: TS },
     { id: U, barangay_id: "p1", disruption_id: U, ranked_source_ids: ["nope"], computed_at: TS }],
@@ -239,5 +242,34 @@ describe("datetime inputs accept offsets", () => {
     expect(T.Allocation.safeParse({ ...alloc, decided_at: "2026-07-01T00:00:00Z" }).success).toBe(true);
     for (const bad of ["garbage", "2026-07-01", "2026-07-01 08:00:00", "2026-13-01T00:00:00Z"])
       expect(T.Allocation.safeParse({ ...alloc, decided_at: bad }).success).toBe(false);
+  });
+});
+
+describe("spec 04 extras + spec 03 endpoint extras (all optional, non-breaking)", () => {
+  const RS = { source_id: U, name: "n", type: "refill_station", safety_score: 0.9, travel_minutes: 12, exceeds_jmp_benchmark: false, cost_php_per_unit: 25, rank: 1 };
+  it("RankedSource accepts provenance/is_simulated/source_ref and still parses without them", () => {
+    expect(T.RankedSource.safeParse(RS).success).toBe(true);
+    expect(T.RankedSource.safeParse({ ...RS, provenance: "osm", is_simulated: false, source_ref: "https://osm.org/node/1" }).success).toBe(true);
+    expect(T.RankedSource.safeParse({ ...RS, provenance: "rumor" }).success).toBe(false);
+  });
+  it("RankedChain: excluded + warning", () => {
+    const base = { barangay_id: "p1", disruption_id: U, ranked_sources: [], computed_at: TS };
+    const ex = { source_id: U, name: "n", type: "neighboring_barangay", reason: "system_wide_cause_neighbor_blended_network" };
+    expect(T.RankedChain.safeParse({ ...base, excluded: [ex], warning: "no_eligible_sources" }).success).toBe(true);
+    expect(T.RankedChain.safeParse({ ...base, excluded: [{ ...ex, reason: "meh" }] }).success).toBe(false);
+    expect(T.RankedChain.safeParse({ ...base, warning: "other" }).success).toBe(false);
+  });
+  it("RankSourcesBatchInput: barangay_ids optional", () => {
+    expect(T.RankSourcesBatchInput.safeParse({ disruption_id: U }).success).toBe(true);
+    expect(T.RankSourcesBatchInput.safeParse({ disruption_id: U, barangay_ids: ["a"] }).success).toBe(true);
+    expect(T.RankSourcesBatchInput.safeParse({ disruption_id: "x" }).success).toBe(false);
+  });
+  it("AffectedArea: suggested_rank/top_source optional, nullable disruption_id", () => {
+    const aa = { barangay_id: "p1", zone: 8, service_level: "level_iii", low_pressure_zone: true, disruption_id: null, signal_level: 3, piped_households_affected: null, unpiped_households_affected: null, coverage_confidence: "unknown", vulnerable_flag: false };
+    expect(T.AffectedArea.safeParse(aa).success).toBe(true);
+    const top = { source_id: U, name: "n", type: "trucking", safety_score: 0.8, travel_minutes: 10, exceeds_jmp_benchmark: false, cost_php_per_unit: 0, provenance: "placeholder", is_simulated: true };
+    expect(T.AffectedArea.safeParse({ ...aa, disruption_id: U, suggested_rank: 1, top_source: top }).success).toBe(true);
+    expect(T.AffectedArea.safeParse({ ...aa, suggested_rank: null, top_source: null }).success).toBe(true);
+    expect(T.AffectedArea.safeParse({ ...aa, suggested_rank: 0 }).success).toBe(false);
   });
 });

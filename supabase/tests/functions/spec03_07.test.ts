@@ -96,7 +96,7 @@ describe("spec 03 buildAffectedAreas", () => {
   it("disruption_id is null when none is open (documented contract change)", () => {
     const out = buildAffectedAreas(BARANGAYS, { signal_level: 0, cause: null, disruption_id: null });
     expect(out.every((a) => a.disruption_id === null)).toBe(true);
-    expect(AffectedArea.safeParse(out[0]).success).toBe(false); // old non-null contract rejects it: spec 03 changed
+    expect(AffectedArea.safeParse(out[0]).success).toBe(true); // shared-types disruption_id is now nullable (spec 03)
   });
 });
 

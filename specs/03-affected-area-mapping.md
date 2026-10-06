@@ -23,6 +23,9 @@ export const AffectedArea = z.object({
   // Added by the endpoint (not in the zod object above; consumers may ignore them):
   //   resident_state: 'flowing' | 'heads_up' | 'planned_repair' | 'interrupted' | 'not_on_network'
   //   heads_up: boolean   (both from residentState(), see the table below)
+  //   suggested_rank: number | null   (1-based allocation priority, heuristic below; null when disruption_id is null)
+  //   top_source: { source_id, name, type, safety_score, travel_minutes, exceeds_jmp_benchmark, cost_php_per_unit, provenance, is_simulated } | null
+  //               (first still-active source of the persisted spec 04 chain; null until `rank-chain` has run for this disruption/barangay)
 });
 ```
 
@@ -47,6 +50,9 @@ export const AffectedArea = z.object({
 - [ ] Endpoint `affected-areas`: `GET ?as_of=ISO[&disruption_id=uuid][&min_signal=0-4]` runs the spec 02 predictor at `as_of` (default now) and returns one row for every one of the 57 barangays (served rows inherit the system signal; unserved rows carry `not_on_network`). `min_signal=2` returns `[]` below signal 2, i.e. "every barangay at signal >= 2". `disruption_id` is the given disruption, else the open one, else null
 - [ ] Level I rows report `piped_households_affected = 0` and all households as unpiped; any row with a NULL count or `coverage_source = 'unknown'` returns both counts NULL and `coverage_confidence: "unknown"`
 
+- [x] `suggested_rank` (HEURISTIC, not a WSP fact; for the LGU allocation screen, spec 06): 1-based over all returned rows, sorted by signal_level desc, then `vulnerable_flag` (critical facility) first, then service level `level_i` before `level_iii` before `unserved` (equity layer: Level I / unpiped first; unserved are not interrupted by a plant failure), then `low_pressure_zone` first, then `barangay_id` asc. The officer may override it (`AllocationDecision.overridden_from_suggested_rank`). Implemented as `suggestRanks` in `_shared/affected.ts` (tests: `supabase/tests/functions/ranking.test.ts` > suggested_rank)
+- [x] `top_source` = first ranked, still-active source of the persisted `continuity_chains` row (spec 04), so the allocation screen can show "Plan A" per barangay without a second call (test: same file > affected-areas top_source)
+
 ## Out of scope
 - GIS polygon precision beyond a barangay-level centroid
 - Real-time population figures (uses the latest available barangay/census count instead)
@@ -57,3 +63,4 @@ export const AffectedArea = z.object({
 2026-10-06: aligned with CWD 2022 WSP (see docs/wsp_findings.md)
 2026-10-06: Dev B handoff 2026-10-06: unserved barangays get their own `not_on_network` state; signal -> resident-state mapping table accepted; `piped_households_affected` / `unpiped_households_affected` nullable in shared-types (spec already said nullable)
 2026-10-06: `AffectedArea.disruption_id` is now nullable (no open disruption); `vulnerable_flag` = critical facility present only (residents' `is_vulnerable` is PII); added `resident_state` + `heads_up` to the endpoint output; new `affected-areas` Edge Function with `min_signal` filter (see supabase/functions/README.md). Dev B: relax `disruption_id` in `apps/web/src/contracts/spec03.ts`.
+2026-10-06: Dev A: added `suggested_rank` (heuristic defined above) and `top_source` to the `affected-areas` output (additive, optional in shared-types); `AffectedArea.disruption_id` is nullable in shared-types too.

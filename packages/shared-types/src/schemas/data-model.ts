@@ -58,6 +58,11 @@ export const Source = z.object({
   travel_minutes: z.number().nonnegative(),  // scored against WHO/UNICEF JMP 30-min benchmark
   cost_php_per_unit: z.number().nonnegative(),
   active: z.boolean(),
+  provenance: z.enum(["wsp", "osm", "web", "placeholder"]).default("placeholder"), // where the row came from
+  source_ref: z.string().nullable().default(null),   // citation (URL or WSP page); required for non-placeholder rows
+  is_simulated: z.boolean().default(false),          // true = simulated placeholder, never a real facility
+  lat: z.number().min(-90).max(90).nullable().default(null),    // source location when known
+  lng: z.number().min(-180).max(180).nullable().default(null),
 });
 export type Source = z.infer<typeof Source>;
 
