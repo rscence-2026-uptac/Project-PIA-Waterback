@@ -1,111 +1,177 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* Design tokens from DESIGN.md (PIA WaterBack). */
+@theme {
+  --color-water: #248dc5;
+  --color-sky: #a3d0e8;
+  --color-foam: #fdfdfd;
+  --color-tide: #1a6e9c;
+  --color-ink: #0d2e42;
+  --color-ink-soft: #34505f;
+  --color-mist: #eef6fb;
+  --color-frost: #f4f9fc;
+  --color-haze: #d3e6f1;
+  --color-ink-raised: #1d4560;
+  --color-coral: #f4846c;
+  --color-coral-wash: #fdebe6;
+  --color-coral-deep: #b23f2a;
+  --color-water-murky: #4f8eac;
+  --color-water-cloudy: #93a3a8;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-hero: 32px;
+  --radius-device: 44px;
+
+  --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-level: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-foam);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    font-size: 1.0625rem; /* 17px resident body, scales with the phone's text size */
+    min-height: 100dvh;
+    background: var(--color-foam);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 750;
+    text-wrap: balance;
+  }
+
+  button, select, input {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* The system-wide focus ring: 3px River Blue, 2px offset. */
+  :focus-visible {
+    outline: 3px solid var(--color-water);
+    outline-offset: 2px;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 750;
+  letter-spacing: -0.03em;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+@utility numeral {
+  font-family: var(--font-display);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+@utility press {
+  transition: transform 140ms var(--ease-soft);
+  &:active {
+    transform: scale(0.97);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+/* Drop gauge ripple: the surface drifts while water flows (DESIGN.md, motion #3). */
+@keyframes ripple {
+  from { transform: translateX(0); }
+  to { transform: translateX(-160px); }
+}
+
+@utility ripple {
+  animation: ripple 5s linear infinite;
+}
+
+@keyframes toast-in {
+  from { transform: translateY(calc(100% + 24px)); }
+  to { transform: translateY(0); }
+}
+
+@utility toast-in {
+  animation: toast-in 300ms var(--ease-drawer);
+}
+
+/* Water's back (wireframe motion #1): the water rises, then headline and card settle in. */
+@keyframes flood {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-390px); }
+}
+
+@utility flood {
+  animation: flood 900ms var(--ease-soft) both;
+}
+
+@utility rise-in {
+  animation: rise-in 360ms var(--ease-soft) both;
+}
+
+@utility drift-slow {
+  animation: drift 11s linear infinite;
+}
+
+@utility drift-fast {
+  animation: drift 7s linear infinite reverse;
+}
+
+/* LGU decision panel swap (motion #7). */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility panel-in {
+  animation: panel-in 260ms var(--ease-soft) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple {
+    animation: none;
   }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  .toast-in {
+    animation: none;
+  }
+  /* Every travel becomes a gentle fade; the water's surface keeps drifting (wireframe p.12). */
+  .flood, .rise-in, .panel-in {
+    animation: rise-fade 220ms ease both;
+  }
+  @keyframes rise-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+  }
 }

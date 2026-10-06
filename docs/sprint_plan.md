@@ -137,7 +137,7 @@ A gate isn't a status meeting — it's a pass/fail check against the specs' own 
 ## Repo and spec folder setup
 
 ```
-tubig-patas/
+pia-waterback/
   specs/
     00-data-model.md
     01-seed-data.md

@@ -1,4 +1,4 @@
-tubig-patas/
+pia-waterback/
   specs/
     00-data-model.md
     01-seed-data.md

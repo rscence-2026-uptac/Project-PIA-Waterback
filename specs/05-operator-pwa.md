@@ -1,18 +1,18 @@
 # Spec: Operator + resident/captain PWA shell
 
 ## What it does
-The client shell: an operator dashboard for logging turbidity/plant-status/reservoir readings, and a resident/barangay-captain PWA for checking barangay status — both installable and offline-first, queuing writes locally (Dexie.js/IndexedDB) and syncing when connectivity returns.
+The client shell: an operator dashboard for logging per-intake turbidity/plant-status/reservoir readings, and a resident/barangay-captain PWA for checking barangay status — both installable and offline-first, queuing writes locally (Dexie.js/IndexedDB) and syncing when connectivity returns.
 
 ## Data contract
 ```ts
 import { z } from "zod";
 
 export const OperatorReadingForm = z.object({
-  barangay_id: z.string(),
+  intake_id: z.enum(["kulador", "masacpasac", "caramayon_1", "caramayon_2"]), // operator picks Kulador, Masacpasac, Caramayon I or Caramayon II
   turbidity_ntu: z.number().nonnegative(),
   plant_status: z.enum(["normal", "degraded", "shutdown"]),
-  reservoir_pct: z.number().min(0).max(100),
-  clarifier_inflow_lps: z.number().nonnegative(),
+  reservoir_pct: z.number().min(0).max(100).nullable(),
+  clarifier_inflow_lps: z.number().nonnegative().nullable(),
 });
 
 export const OfflineQueueItem = z.object({
@@ -45,3 +45,6 @@ export const BarangayStatusView = z.object({
 ## Depends on
 - specs/00-data-model.md
 - specs/08-ui-ux-guidelines.md
+
+## Changelog
+- 2026-10-06: readings logged per intake, aligned with CWD 2022 WSP (docs/wsp_findings.md)

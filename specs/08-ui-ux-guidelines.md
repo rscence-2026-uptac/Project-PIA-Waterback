@@ -36,3 +36,7 @@ export const ScreenState = z.enum(["loading", "ready", "offline_stale", "error"]
 
 ## Depends on
 - none — write first, informs specs/05-operator-pwa.md, specs/06-allocation-and-notify.md, specs/07-admin-dashboard.md
+
+## Decisions
+- 2026-10-06: **LGU / CDRRMO screens (`/lgu`, `/lgu/event`, `/admin`) are English only.** Residents and barangay water captains keep the Waray / Filipino / English choice. LGU strings still live in the one copy table, but only their English column is shown, so they don't need a Waray/Filipino review.
+- 2026-10-06: **Onboarding barangay choice is a searchable dropdown, not a scroll list.** Tap to open all 57, or type to filter. It covers all 57 Catbalogan City barangays (official PSGC names) and nothing outside Catbalogan for now. It matches names, numbers ("5" → Poblacion 5 / Barangay 5) and common spellings. Arrow keys, Enter and Escape work; options are 56px tall. Component: `apps/web/src/ui/BarangayCombobox.tsx`; data: `apps/web/src/data/barangays.ts`.
