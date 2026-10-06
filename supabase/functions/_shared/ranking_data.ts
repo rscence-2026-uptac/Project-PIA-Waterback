@@ -5,10 +5,10 @@ import type { ChainRow } from "./ranking.ts";
 import type { SupabaseLike } from "./supabase_data.ts";
 import { fetchAll } from "./supabase_data.ts";
 
-const SOURCE_COLS = "id,barangay_id,name,type,safety_score,travel_minutes,cost_php_per_unit,active,provenance,source_ref,is_simulated";
+const SOURCE_COLS = "id,barangay_id,name,type,safety_score,travel_minutes,cost_php_per_unit,active,provenance,source_ref,is_simulated,network_dependent";
 const toSource = (r: any): SourceRow => ({
   ...r, safety_score: Number(r.safety_score), travel_minutes: Number(r.travel_minutes), cost_php_per_unit: Number(r.cost_php_per_unit),
-  source_ref: r.source_ref ?? null, is_simulated: !!r.is_simulated,
+  source_ref: r.source_ref ?? null, is_simulated: !!r.is_simulated, network_dependent: !!r.network_dependent,
 });
 
 export function makeRankStore(supabase: SupabaseLike) {

@@ -125,6 +125,12 @@ Deploy with `--no-verify-jwt` (set in `supabase/config.toml`); protected by a sh
 | anything else | Help reply. |
 Response: `{keyword, handled, reply, sms}`; in dry-run nothing is sent.
 
+### Simulated handset (`sms_outbox`, `sms-webhook?demo=1`)
+Zero-cost SMS round trip for the stage. Migration `20261006000009_sms_outbox.sql`; seed `supabase/seed/demo_residents.sql` (5 placeholder residents, phones `+639000000001..4`, an obviously fake block, not real subscribers).
+- `notify-residents` writes one `sms_outbox` row per planned SMS (`direction: outbound`, `mode: dry_run` or `live`, `to_masked` like `+63900•••0001`, `template` = `sms.water_off`/`sms.water_off_no_store`, `language`, `body`). The table is anon-readable (Realtime), so it never holds a full number. An outbox failure never fails the notify.
+- `sms-webhook` logs the inbound text (`direction: inbound`) and its auto-reply (`outbound`; template = the reply's `SmsKey`).
+- **Demo path**: `POST .../functions/v1/sms-webhook?demo=1`, JSON `{"from":"+639000000001","message":"THANKS"}`. Accepted without a token ONLY when `from` is a seeded resident in the fake `+63900000000X` block; the reply is then forced to dry-run even if `SMS_LIVE=true`. Any other sender (or no `demo=1`) needs `?token=SMS_WEBHOOK_SECRET` as before (mandatory when live). `THANKS` -> `resident-confirmation` restored=true for the resident's barangay (needs the barangay to be `notified`); `STATUS` -> the current status text. Response: `{keyword, handled, reply, sms}`. Deploy `sms-webhook` with `--no-verify-jwt` (already in `config.toml`).
+
 ### Env vars and deploy
 | Var | Used by | Notes |
 |---|---|---|
@@ -156,7 +162,7 @@ Datetime inputs (`queued_at`, `recorded_at`, `confirmed_at`, `sent_at`, `deploye
 
 ## Spec 04 endpoint
 
-Function: `rank-chain` (logic `_shared/ranking.ts`, data access `_shared/ranking_data.ts`, tests `supabase/tests/functions/ranking.test.ts`). CORS-enabled, anon key like the others; writes `continuity_chains` with the service role. Needs migration `20261006000008_chains_unique.sql` (unique `(disruption_id, barangay_id)`) and the `sources` seed (000007 columns).
+Function: `rank-chain` (logic `_shared/ranking.ts`, data access `_shared/ranking_data.ts`, tests `supabase/tests/functions/ranking.test.ts`). CORS-enabled, anon key like the others; writes `continuity_chains` with the service role. Needs migration `20261006000008_chains_unique.sql` (unique `(disruption_id, barangay_id)`), `20261006000010_sources_network_dependent.sql` (`sources.network_dependent`; apply BEFORE deploying, the function selects that column) and the `sources` seed (000007 columns + `network_dependent`).
 
 ### `POST rank-chain`
 Single: `{ "barangay_id": "poblacion-05", "disruption_id": "<uuid>" }` -> one `RankedChain`. Batch: `{ "disruption_id": "<uuid>", "barangay_ids": ["a", "b"] }` (`barangay_ids` optional) -> `{ "disruption_id", "cause", "chains": RankedChain[] }`. Without `barangay_ids`, every barangay affected per spec 03 at the disruption's `signal_level` (>= 2 -> all 57; below -> `chains: []`).
@@ -170,11 +176,11 @@ Single: `{ "barangay_id": "poblacion-05", "disruption_id": "<uuid>" }` -> one `R
       "exceeds_jmp_benchmark": false, "cost_php_per_unit": 0, "rank": 2,
       "provenance": "placeholder", "is_simulated": true, "source_ref": "Simulated placeholder (docs/backup_sources.md rubric): ..." } ],
   "excluded": [ { "source_id": "...", "name": "Neighboring barangay supply: ... (simulated)", "type": "neighboring_barangay",
-                  "reason": "system_wide_cause_neighbor_blended_network" } ],
+                  "reason": "network_dependent_system_wide" } ],
   "computed_at": "2026-07-10T04:00:00.000Z" }
 ```
-- Order: safety desc, travel asc, cost asc, `source_id` asc. `exceeds_jmp_benchmark` = `travel_minutes > 30` (constant `JMP_ROUNDTRIP_MIN`): flagged, never excluded.
-- `excluded` reasons: `inactive` (spec 04 AC4, also logged), `system_wide_cause_neighbor_blended_network` (`neighboring_barangay` rows when the disruption cause is `turbidity` or `drought`; kept for `repair`).
+- Order: reachable first (`travel_minutes <= 30`, constant `JMP_ROUNDTRIP_MIN`), then safety desc, travel asc, cost asc, `source_id` asc ("safety first among options people can actually reach"). `exceeds_jmp_benchmark` = `travel_minutes > 30`: those sources stay in the chain after every reachable one, flagged, never excluded for distance.
+- `excluded` reasons: `inactive` (spec 04 AC4, also logged), `network_dependent_system_wide` (every `sources.network_dependent` row, i.e. all `neighboring_barangay` rows and the Cogao booster line for the Darahuway barangays, when the disruption cause is `turbidity` or `drought`; kept for `repair`). Deprecated alias: `system_wide_cause_neighbor_blended_network` (old neighbor-only name, no longer emitted).
 - Nothing eligible -> 200 with `ranked_sources: []`, `warning: "no_eligible_sources"` (persisted empty; a batch continues).
 - Re-running upserts the `continuity_chains` row (replaces `ranked_source_ids`, `computed_at`). Errors: 400 (ids, both `barangay_id` and `barangay_ids`, unknown ids in `barangay_ids`), 404 (disruption, or single-mode barangay), 405, 500.
 - When to call: after the disruption is confirmed (e.g. from the operator "confirm" flow or the allocation screen on load); call batch once, then `affected-areas` returns `top_source`. Not wired to run automatically: re-run it after a source is activated/deactivated.

@@ -153,6 +153,14 @@ describe("contract edge cases", () => {
     const { intake_id: _i, ...noIntake } = reading;
     expect(T.Reading.safeParse(noIntake).success).toBe(false);
   });
+  it("Source.network_dependent defaults to false, accepts true, rejects non-boolean", () => {
+    const base = { id: U, barangay_id: "p1", name: "Cogao line", type: "communal_tap", safety_score: 0.7, travel_minutes: 10, cost_php_per_unit: 0, active: true };
+    expect(T.Source.parse(base).network_dependent).toBe(false);
+    expect(T.Source.parse({ ...base, network_dependent: true }).network_dependent).toBe(true);
+    expect(T.Source.safeParse({ ...base, network_dependent: "yes" }).success).toBe(false);
+    const ex = { source_id: U, name: "n", type: "communal_tap", reason: "network_dependent_system_wide" };
+    expect(T.ExcludedSource.safeParse(ex).success).toBe(true);
+  });
   it("is_simulated flag", () => {
     const { is_simulated: _s, ...noFlag } = reading as Record<string, unknown>;
     expect(T.Reading.parse(noFlag).is_simulated).toBe(false);
@@ -280,5 +288,19 @@ describe("TurbidityFeatures v3", () => {
     const out = T.TurbidityFeatures.parse({ turbidity_ntu: 5, turbidity_slope_per_hr: 1, rain_24h_mm: 0, rain_72h_mm: 0, forecast_rain_48h_mm: 1 });
     expect("turbidity_slope_per_hr" in out).toBe(false);
     expect(T.TurbidityFeatures.safeParse({ turbidity_ntu: 5, rain_24h_mm: 0, rain_72h_mm: 0 }).success).toBe(false);
+  });
+});
+
+describe("SmsOutbox", () => {
+  const row = { id: U, disruption_id: U2, barangay_id: "lagundi", resident_id: U, to_masked: "+63900•••0001", template: "sms.water_off", language: "waray", body: "PIA WATERBACK: Waray tubig ha Lagundi", direction: "outbound", mode: "dry_run", created_at: TS };
+  it("accepts a masked row and an inbound row with nulls", () => {
+    expect(T.SmsOutbox.safeParse(row).success).toBe(true);
+    expect(T.SmsOutbox.safeParse({ ...row, disruption_id: null, barangay_id: null, resident_id: null, template: null, language: null, direction: "inbound", body: "THANKS" }).success).toBe(true);
+  });
+  it("rejects a full phone number, a bad direction/mode and an empty body", () => {
+    expect(T.SmsOutbox.safeParse({ ...row, to_masked: "+639000000001" }).success).toBe(false);
+    expect(T.SmsOutbox.safeParse({ ...row, direction: "sideways" }).success).toBe(false);
+    expect(T.SmsOutbox.safeParse({ ...row, mode: "maybe" }).success).toBe(false);
+    expect(T.SmsOutbox.safeParse({ ...row, body: "" }).success).toBe(false);
   });
 });

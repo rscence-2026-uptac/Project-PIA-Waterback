@@ -47,7 +47,7 @@ begin
        = array['predicted','confirmed','deployed','notified','resident_confirmed','resolved'],
        'event_type order';
   assert (select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r'
-          and relrowsecurity) = 13, 'RLS not enabled on 13 tables';
+          and relrowsecurity) = 14, 'RLS not enabled on 14 tables (13 core + sms_outbox)';
 end $$;
 
 -- constraint violations must fail

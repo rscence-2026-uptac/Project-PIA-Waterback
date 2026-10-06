@@ -48,6 +48,12 @@ export interface NewReading {
   source: "operator"; is_simulated: false; client_local_id: string;
 }
 
+export interface NewSmsOutbox {
+  disruption_id: string | null; barangay_id: string | null; resident_id: string | null;
+  to_masked: string; template: string | null; language: string | null; body: string;
+  direction: "outbound" | "inbound"; mode: "dry_run" | "live";
+}
+
 export interface Store {
   getDisruption(id: string): Promise<DisruptionRow | null>;
   /** Latest not-yet-resolved disruption, or null. */
@@ -70,6 +76,8 @@ export interface Store {
   getSmsResidents(barangayIds: string[]): Promise<ResidentRow[]>;
   findResidentByPhone(e164: string): Promise<ResidentRow | null>;
   insertReading(row: NewReading): Promise<"inserted" | "duplicate">;
+  /** Simulated-handset log (masked numbers only; world-readable). Callers must treat a failure as non-fatal. */
+  insertSmsOutbox(rows: NewSmsOutbox[]): Promise<void>;
 }
 
 /** Order key for an event: server receive time when we wrote it, else occurred_at. */

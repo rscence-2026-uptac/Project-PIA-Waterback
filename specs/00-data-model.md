@@ -115,6 +115,7 @@ export const Source = z.object({
   is_simulated: z.boolean().default(false),        // true = simulated placeholder, never a real facility (UI must label it)
   lat: z.number().min(-90).max(90).nullable().default(null),   // source location when known
   lng: z.number().min(-180).max(180).nullable().default(null),
+  network_dependent: z.boolean().default(false),   // fed from the blended CWD network: dry in a system-wide failure; rank-chain excludes it for turbidity/drought (spec 04)
 });
 
 export const ContinuityChain = z.object({
@@ -163,6 +164,7 @@ export const EventLog = z.object({
 - [ ] RLS: read access open to the anon key on every table except `residents` (demo simplicity), writes restricted to the `service_role` used by Edge Functions — documented as a hackathon-scope decision, not a production security posture
 - [ ] anon key cannot read `residents` (PII): no anon/authenticated policy, `service_role` only
 - [ ] `residents.phone` rejects anything that is not PH mobile E.164 (`+639XXXXXXXXX`)
+- [ ] `sms_outbox` (simulated-handset log, migration `20261006000009`, fourteenth table): anon/authenticated SELECT, writes `service_role` only, in the `supabase_realtime` publication; holds only masked numbers (`to_masked`, e.g. `+63900•••0001`), never a full phone. `seed/demo_residents.sql` seeds 5 placeholder demo residents (4 sms with fake numbers `+63900000000X`, 1 pwa) in lagundi, payao, darahuway-dako, darahuway-guti, poblacion-01
 - [ ] `event_log.event_type` enum matches every step in the process-flow diagram, in order: predicted → confirmed → deployed → notified → resident_confirmed → resolved
 
 ## Out of scope
@@ -183,3 +185,5 @@ export const EventLog = z.object({
 2026-10-06: added rain_forecast_hourly (migration 20261006000005) — hourly rain forecast (Open-Meteo historical-forecast archive) so forecast_rain_48h_mm is deterministic and offline-safe for the demo; thirteen tables
 2026-10-06: Dev B handoff 2026-10-06 (migration 20261006000006, columns only, still thirteen tables): readings.treated_turbidity_ntu + client_local_id; event_log.barangay_id (NULL = system-wide) + client_local_id; disruptions window_start/window_end/likely_at/next_update_at/heads_up_from; barangays.wsp_name, name = official PSGC name; per-barangay restored-at = resident_confirmed event with restored=true
 2026-10-06: sources provenance (migration 20261006000007, columns only): provenance ('wsp'|'osm'|'web'|'placeholder', default 'placeholder'), source_ref (citation), is_simulated, lat, lng; seed/sources.sql seeds >= 3 active sources per barangay, placeholders flagged simulated (docs/backup_sources.md)
+2026-10-06: sources.network_dependent boolean not null default false (migration 20261006000010, column only, still thirteen tables): true for sources fed from the blended CWD network (all neighboring_barangay rows + Cogao booster line); rank-chain excludes them for turbidity/drought (spec 04)
+2026-10-06: sms_outbox (migration 20261006000009) for the simulated-handset SMS demo; fourteen tables. Demo residents seed (placeholder numbers +63900000000X, not real subscribers); the seeded residents are exempt from the 'residents is empty' assumption of demo `reset`, which never deletes them
