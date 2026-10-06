@@ -8,10 +8,10 @@ const DROP_PATH = "M80 8 Q110 50 139.3 94.2 A72 72 0 1 1 20.7 94.2 Q50 50 80 8 Z
 const TOP = 8;
 const BOTTOM = 207;
 
-const LOOKS: Record<DropLook, { level: number; color: string; ripples: boolean }> = {
+const LOOKS: Record<DropLook, { level: number; color: string; ripples: boolean; slow?: boolean }> = {
   flowing: { level: 0.8, color: "var(--color-water)", ripples: true },
   headsup: { level: 0.72, color: "var(--color-water-murky)", ripples: true },
-  muddy: { level: 0.14, color: "var(--color-water-cloudy)", ripples: false },
+  muddy: { level: 0.14, color: "var(--color-water-cloudy)", ripples: true, slow: true },
   low: { level: 0.32, color: "var(--color-water)", ripples: false },
   repair: { level: 0.06, color: "var(--color-water)", ripples: false },
 };
@@ -22,7 +22,7 @@ export function DropGauge({ look, width = 120, className = "" }: {
   className?: string;
 }) {
   const clipId = useId();
-  const { level, color, ripples } = LOOKS[look];
+  const { level, color, ripples, slow } = LOOKS[look];
   const surfaceY = BOTTOM - level * (BOTTOM - TOP);
 
   return (
@@ -49,7 +49,7 @@ export function DropGauge({ look, width = 120, className = "" }: {
           <path
             className={ripples ? "ripple" : undefined}
             d="M0 0 Q20 -6 40 0 T80 0 T120 0 T160 0 T200 0 T240 0 T280 0 T320 0 V220 H0 Z"
-            style={{ fill: color, transition: "fill 600ms ease" }}
+            style={{ fill: color, transition: "fill 600ms ease", ...(slow && { animationDuration: "10s" }) }} // muddy: dull, sluggish ripple (DESIGN.md)
           />
         </g>
       </g>

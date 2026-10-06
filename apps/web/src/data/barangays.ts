@@ -8,13 +8,78 @@ export interface CatbaloganBarangay {
   name: string; // official PSGC name
   aliases: string[]; // other names residents or the WSP use; searchable
   served: boolean;
+  lat: number | null;
+  lng: number | null; // approximate OSM centroid (supabase/seed/barangays.sql), not survey data
 }
 
 const slug = (name: string) =>
   name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+// Approximate OSM centroids (supabase/seed/barangays.sql), keyed by barangay_id. Not survey data.
+const CENTROIDS: Record<string, [number, number]> = {
+  "poblacion-01": [11.7793566, 124.8809802],
+  "poblacion-02": [11.7781747, 124.8818049],
+  "poblacion-03": [11.7762421, 124.8797517],
+  "poblacion-04": [11.7752359, 124.880791],
+  "poblacion-05": [11.7744146, 124.8808816],
+  "poblacion-06": [11.7733767, 124.8814669],
+  "poblacion-07": [11.7735129, 124.8831998],
+  "poblacion-08": [11.770344, 124.8825688],
+  "poblacion-09": [11.7672978, 124.8832018],
+  "poblacion-10": [11.7786172, 124.8842388],
+  "poblacion-11": [11.7774794, 124.8844722],
+  "poblacion-12": [11.7761342, 124.8849875],
+  "poblacion-13": [11.7783032, 124.8868396],
+  "san-andres": [11.7874037, 124.8971854],
+  "canlapwas": [11.782208, 124.8894566],
+  "san-pablo": [11.7801379, 124.8826179],
+  "munoz": [11.7807436, 124.8837274],
+  "mercedes": [11.782393, 124.8774376],
+  "maulong": [11.7926482, 124.8660885],
+  "guindapunan": [11.7716403, 124.8880985],
+  "guinsorongan": [11.7581661, 124.8851083],
+  "bunu-anan": [11.7540974, 124.8885802],
+  "darahuway-guti": [11.7490138, 124.8721063],
+  "darahuway-dako": [11.7448201, 124.876064],
+  "payao": [11.8033839, 124.862532],
+  "lagundi": [11.7597601, 124.9053032],
+  "albalate": [11.8669069, 124.898415],
+  "bagongon": [11.8031916, 124.7031307],
+  "bangon": [11.8756205, 124.8784094],
+  "basiao": [11.6902355, 124.9012839],
+  "buluan": [11.8178079, 124.7385639],
+  "cabugawan": [11.8113805, 124.8251023],
+  "cagudalo": [11.8546017, 124.8778354],
+  "cagusipan": [11.9053737, 124.9257881],
+  "cagutian": [11.8795951, 124.9113854],
+  "cagutsan": [11.8186834, 124.6833012],
+  "canhawan-gote": [11.8248534, 124.7259481],
+  "cawayan": [11.7979902, 124.918553],
+  "cinco": [11.8234863, 124.697078],
+  "estaka": [11.7963201, 124.8325568],
+  "ibol": [11.7550316, 124.9014617],
+  "iguid": [11.829124, 124.8370783],
+  "libas": [11.8367046, 124.8883542],
+  "lobo": [11.836019, 124.9181319],
+  "manguehay": [11.8110047, 124.8974228],
+  "mombon": [11.799764, 124.6976338],
+  "new-mahayag": [11.8461719, 124.8268671],
+  "old-mahayag": [11.8456606, 124.821537],
+  "palanyogon": [11.8674036, 124.8657887],
+  "pangdan": [11.7439792, 124.917447],
+  "pupua": [11.8114369, 124.8599254],
+  "rama": [11.8243674, 124.6931164],
+  "san-roque": [11.8040504, 124.8389226],
+  "san-vicente": [11.8655233, 124.8311909],
+  "silanga": [11.8170412, 124.8399064],
+  "socorro": [11.7661735, 124.8920944],
+  "totoringon": [11.8537518, 124.9252225],
+};
+
 function b(name: string, opts: { id?: string; aliases?: string[]; served?: boolean } = {}): CatbaloganBarangay {
-  return { barangay_id: opts.id ?? slug(name), name, aliases: opts.aliases ?? [], served: opts.served ?? false };
+  const barangay_id = opts.id ?? slug(name);
+  const c = CENTROIDS[barangay_id];
+  return { barangay_id, name, aliases: opts.aliases ?? [], served: opts.served ?? false, lat: c?.[0] ?? null, lng: c?.[1] ?? null };
 }
 
 const POBLACION = Array.from({ length: 13 }, (_, i) =>

@@ -123,6 +123,20 @@ With the predictor now system-wide (`scope: "system"`), every served barangay ge
 - **Swap point:** `apps/web/src/realtime/eventFeed.ts` holds a `// MOCK:` simulator for now (an event every ~4 s; it drops when the browser goes offline). Replace the two functions there; the screen and hook don't change.
 - **Install needed:** `@supabase/supabase-js` in `apps/web`, plus the project URL and anon key (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). Dev B will add them once you share the keys.
 
+### 10. Consumer types on the allocation list (spec 09) (new)
+- **Where it is:** `/lgu` now lists one row per (barangay, consumer type), ordered LGU > Residential > Commercial > Industrial, with a priority map (Leaflet + OSM) above the list. All data is `// MOCK:` in `apps/web/src/data/mockLgu.ts` (`AFFECTED_GROUPS`, `BARANGAY_POINTS`).
+- **Data it needs:** per-(barangay, `consumer_type`) affected connection counts (`AffectedGroup` in spec 09).
+  - LGU: the facility list per barangay, with kinds `health_station`, `school`, `evacuation_center` and `barangay_hall`.
+  - Residential, commercial, industrial: connection counts, e.g. from CWD billing classes. `null` when unknown, never guessed.
+- **Shared-types:** add optional `consumer_type` to `AllocationDecision` in `allocation.ts`, plus a matching column on the `allocations` table.
+- **Map:** lat/lng already in the seed `barangays` table (approximate OSM centroids); no backend work needed for the pins.
+
+### 11. Backup sources map on /sources (spec 05 amendment) (new)
+
+- The resident Sources screen now uses your seed sources (copied to `apps/web/src/data/seedSources.ts`) and ranks them in the app like `rankSources`. When the app switches to the `rank-chain` API, it needs **`lat` and `lng` on each `RankedSource`** (nullable; the seed already has them for wsp/osm rows) to keep the map.
+- The resident card used to show live status ("Flowing", "Open · has stock") and who reported it. Your seed has no such fields, so those lines now hide when absent. If captains or refill partners report status (the SMS `OPEN 40` / `OUT` replies), a `live_status` + `reported_at` per source would bring them back.
+- If you regenerate `sources.sql`, re-copy it to `seedSources.ts` (it's a one-off conversion; tell Dev B).
+
 ## Done on the Dev B side (FYI, no action)
 
 - **Aligned with your CWD 2022 WSP review** (`1b396e2`, `docs/wsp_findings.md`):

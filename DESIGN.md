@@ -220,6 +220,7 @@ A cool, near-monochrome blue world where the brightest blue always means water a
 - **Haze** (haze): Hover tint for small controls only; never a line or a border.
 - **Raised Current** (ink-raised): Inner panels and secondary buttons inside dark ink panels.
 - **Murky Water** (water-murky) and **Cloudy Water** (water-cloudy): Gauge fill only, for the heads-up and muddy-river states.
+- **Consumer-type colours** (spec 09): LGU = Coral Deep (coral-deep), Residential = River Blue (water), Commercial = Amber (amber, #a5670f), Industrial = Plum (plum, #6b4c8a). Badge and map pin use only, always with an icon plus the type name, never colour alone.
 
 ### Named Rules
 **The Water Only Rule.** River Blue (#248dc5) only ever paints water. If it isn't water, a level of water, or time until water, it is tide, sky or ink.
@@ -308,7 +309,7 @@ Confident, chunky and finger-sized.
 - **Dashboards:** a top bar with the drop wordmark, the organisation name and text tabs; the current tab sits in a soft pill.
 
 ### Drop Gauge (signature)
-The water drop drawn as a vessel and filled to the current level. Flowing: about 80% full, River Blue, the surface ripples slowly (5s linear loop). Heads-up: about 72%, Murky Water, still rippling. Muddy river: about 14%, Cloudy Water, still. Low river: about 32%, River Blue, still. Repair: about 6%, still. Back: refills to about 86% and the ripple resumes. Level changes move over 800ms with cubic-bezier(0.77, 0, 0.175, 1); colour changes fade over 600ms. Under reduced motion the level changes instantly, the colour still fades and the ripple stops. The gauge always sits next to words that say the same thing.
+The water drop drawn as a vessel and filled to the current level. Flowing: about 80% full, River Blue, the surface ripples slowly (5s linear loop). Heads-up: about 72%, Murky Water, still rippling. Muddy river: about 14%, Cloudy Water, a dull slow ripple (10s linear loop, twice as slow as flowing, so it reads as sluggish water, not flow). Low river: about 32%, River Blue, still. Repair: about 6%, still. Back: refills to about 86% and the ripple resumes. Level changes move over 800ms with cubic-bezier(0.77, 0, 0.175, 1); colour changes fade over 600ms. Under reduced motion the level changes instantly, the colour still fades and the ripple stops. The gauge always sits next to words that say the same thing.
 
 ### Storage Tiles
 Three tappable jerrycan tiles (20 L each) in a mist card. Tapping fills the container from its base (scaleY over 420ms, ease-out) and advances the progress segments. The card stops at 60 L and says so; the plan never rewards storing more.
