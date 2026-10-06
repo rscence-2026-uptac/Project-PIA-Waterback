@@ -52,18 +52,20 @@ The resident Sources screen (`/sources`) gets a map of the barangay's backup wat
 Acceptance criteria:
 - [ ] The Sources screen always shows the map (Leaflet + standard OSM tiles) above the plan; Leaflet is a separate chunk loaded only by this screen.
 - [ ] The map shows "Your barangay" at its seed centroid and one pin per source that has lat/lng, lettered like the plan (A, B, C); Plan A uses the primary colour.
-- [ ] A card under the map names the nearest mapped source ("Plan B · nearest on the map"), its straight-line distance in words ("About 1.1 km away · in a straight line from the centre of your barangay"), and a full-width "Get walking directions" link that opens Google Maps.
+- [ ] A card under the map names the nearest mapped source ("Plan B · nearest on the map"), its straight-line distance in words ("About 1.1 km away · in a straight line from the centre of your barangay"), and a full-width "Show walking route" button.
 - [ ] Tapping a pin selects that source: the card shows it and the list scrolls to and outlines its row.
 - [ ] "Use my location" asks for GPS only when tapped; on success a "You are here" dot appears and distances are measured from it; on refusal or timeout a plain message says the map uses the barangay centre. No permission prompt on page load.
 - [ ] Offline or tile failure: the map says "The map needs internet. The list below still works." The list is unaffected.
 - [ ] Everything the map shows is also in words (card and list); the map itself is hidden from screen readers. No drag-to-pan on phones (it would trap page scroll); zoom buttons are 48 px.
 
-Out of scope: walking routes or road distance in the app; live queue/stock status on real sources (needs captain/partner reports); offline map tiles.
+- [ ] "Show walking route" gets a walking route in the app (FOSSGIS OSRM foot router on OpenStreetMap, no API key; `WALKING_ROUTER_URL` in lib/walkingRoute.ts) and draws it on the map, with the total ("About 1.2 km · about 15 min walk"). It starts from GPS if given, else the barangay centre. "Done" returns to the card. If the router fails or times out (12 s), the card says so and offers "Try again"; the straight-line distance stays.
+
+Out of scope: turn-by-turn voice or live navigation; live queue/stock status on real sources (needs captain/partner reports); offline map tiles.
 
 ## Depends on
 - specs/00-data-model.md
 - specs/08-ui-ux-guidelines.md
 
 ## Changelog
-- 2026-10-06: amendment, backup sources map on /sources (Dev B, owner OK)
+- 2026-10-06: amendment, backup sources map on /sources (Dev B, owner OK); in-app walking directions via the FOSSGIS OSRM router (owner OK)
 - 2026-10-06: readings logged per intake, aligned with CWD 2022 WSP (docs/wsp_findings.md)
