@@ -51,7 +51,7 @@ export function SourcesMap({ sources, home, barangayName, selectedId, onSelect }
   const [you, setYou] = useState<Point | null>(null);
   const [located, setLocated] = useState<Located>("barangay");
   const [tilesFailed, setTilesFailed] = useState(() => !navigator.onLine);
-  const reduce = useMemo(reduceMotion, []);
+  const reduce = useMemo(() => reduceMotion(), []);
 
   const mapped = sources.filter((s): s is BackupSource & Point => s.lat !== null && s.lng !== null);
   const origin = you ?? home;

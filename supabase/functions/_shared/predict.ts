@@ -2,6 +2,10 @@
 import { SIGNAL_LEVEL_THRESHOLDS, WSP_CONSTANTS, toSignalLevel } from "./constants.generated.ts";
 import { droughtRisk, turbidityRisk } from "./model.generated.ts";
 import type { DroughtModelFeatures, TurbidityModelFeatures } from "./model.generated.ts";
+import { modelDrivers, operatorActions, wspRuleDriver } from "./drivers.ts";
+import type { Driver, Drivers, OperatorAction } from "./drivers.ts";
+
+export type { Driver, Drivers, OperatorAction } from "./drivers.ts";
 
 export type TurbidityFeatures = TurbidityModelFeatures;
 export type DroughtFeatures = DroughtModelFeatures;
@@ -28,6 +32,10 @@ export interface PredictorOutput {
   computed_at: string;
   fallback_used: boolean;
   forecast_source: ForecastSource;
+  /** Why: per-model feature contributions (model path) or the WSP rule that fired (fallback). Optional/non-breaking. */
+  drivers?: Drivers;
+  /** Recommended actions for the current levels, each with a WSP page or "PIA WaterBack recommendation". */
+  operator_actions?: OperatorAction[];
 }
 /** Where forecast_rain_48h_mm came from: seeded table, live Open-Meteo call, or unavailable (-> turbidity fallback). */
 export type ForecastSource = "seeded" | "live" | "missing";
@@ -153,21 +161,27 @@ export function daysSinceRain(rainHourly: RainHourRow[], asOfMs: number): number
 
 /** WSP deterministic turbidity rule (spec 02 AC; p.43 shut-off at >= 500 NTU). */
 export function turbidityFallbackLevel(readings: ReadingRow[], asOf: Date): number {
+  return turbidityFallbackDetail(readings, asOf).level;
+}
+
+/** Same rule as turbidityFallbackLevel, with a plain-language description of which rule fired. */
+export function turbidityFallbackDetail(readings: ReadingRow[], asOf: Date): { level: number; text: string } {
   const asOfMs = asOf.getTime();
   const recent = (intake: string) => upTo(readings, intake, asOfMs).filter((r) => asOfMs - t(r.recorded_at) <= FALLBACK_LOOKBACK_MS).pop();
   const raws = [recent(KULADOR), recent(CARAMAYON_1)].filter((r): r is ReadingRow => !!r).map((r) => r.turbidity_ntu);
   if (raws.length > 0) {
     const raw = Math.max(...raws);
-    if (raw >= WSP_CONSTANTS.TURBIDITY_SHUTOFF_NTU) return 4;
-    if (raw >= FALLBACK_DEGRADED_NTU) return 3;
-    if (raw > WSP_CONSTANTS.TURBIDITY_LIMIT_NTU) return 1;
-    return 0;
+    const n = Math.round(raw * 10) / 10;
+    if (raw >= WSP_CONSTANTS.TURBIDITY_SHUTOFF_NTU) return { level: 4, text: `WSP rule (p.43): raw turbidity ${n} NTU is at or above 500 NTU, source shut-off` };
+    if (raw >= FALLBACK_DEGRADED_NTU) return { level: 3, text: `WSP rule: raw turbidity ${n} NTU is at or above 250 NTU (plant degraded to about 50% filtration, pp.22, 43)` };
+    if (raw > WSP_CONSTANTS.TURBIDITY_LIMIT_NTU) return { level: 1, text: `WSP rule (pp.17-18, 43-44): raw turbidity ${n} NTU is above the 5 NTU permissible limit` };
+    return { level: 0, text: `WSP rule: raw turbidity ${n} NTU is within the 5 NTU permissible limit` };
   }
   // No usable turbidity at all: fall back on the worst plant_status reported in the last 24 h.
   const statuses = readings.filter((r) => t(r.recorded_at) <= asOfMs && asOfMs - t(r.recorded_at) <= FALLBACK_LOOKBACK_MS).map((r) => r.plant_status);
-  if (statuses.includes("shutdown")) return 4;
-  if (statuses.includes("degraded")) return 3;
-  return 0;
+  if (statuses.includes("shutdown")) return { level: 4, text: "WSP rule: no turbidity reading in 24 h; plant status reported shutdown" };
+  if (statuses.includes("degraded")) return { level: 3, text: "WSP rule: no turbidity reading in 24 h; plant status reported degraded" };
+  return { level: 0, text: "WSP rule: no turbidity reading in 24 h and no degraded or shutdown plant status" };
 }
 
 /**
@@ -175,16 +189,18 @@ export function turbidityFallbackLevel(readings: ReadingRow[], asOf: Date): numb
  * These reservoir-% cut-offs are our own simple deterministic stand-in, applied only when a drought feature is missing.
  */
 export function droughtFallbackLevel(readings: ReadingRow[], asOf: Date): number {
+  return droughtFallbackDetail(readings, asOf).level;
+}
+
+export function droughtFallbackDetail(readings: ReadingRow[], asOf: Date): { level: number; text: string } {
   const asOfMs = asOf.getTime();
   const kul = upTo(readings, KULADOR, asOfMs).filter((r) => r.reservoir_pct != null && asOfMs - t(r.recorded_at) <= FALLBACK_LOOKBACK_MS);
   const latest = kul[kul.length - 1];
-  if (!latest) return 0; // no reservoir data: cannot claim a drought risk
+  if (!latest) return { level: 0, text: "Fallback rule: no reservoir reading in 24 h, no drought risk claimed (the WSP has no drought rule)" };
   const pct = latest.reservoir_pct as number;
-  if (pct < 10) return 4;
-  if (pct < 20) return 3;
-  if (pct < 35) return 2;
-  if (pct < 50) return 1;
-  return 0;
+  const n = Math.round(pct * 10) / 10;
+  const level = pct < 10 ? 4 : pct < 20 ? 3 : pct < 35 ? 2 : pct < 50 ? 1 : 0;
+  return { level, text: `Fallback rule (PIA assumption, not in the WSP): reservoir at ${n}% of usable capacity gives level ${level}` };
 }
 
 export function predict(input: {
@@ -200,22 +216,26 @@ export function predict(input: {
   const forecastSource: ForecastSource = fcMm == null ? "missing" : (input.forecastSource ?? "seeded");
   let fallback = false;
 
-  let pT: number, lT: number;
+  const baseline: Drivers["baseline"] = {};
+  let pT: number, lT: number, dT: Driver[];
   const tf = buildTurbidityFeatures(readings, rainHourly, fcMm, asOf);
-  if (tf) { pT = turbidityRisk(tf); lT = toSignalLevel(pT); }
-  else { fallback = true; lT = turbidityFallbackLevel(readings, asOf); pT = LEVEL_MIDPOINT_P[lT]; }
+  if (tf) { pT = turbidityRisk(tf); lT = toSignalLevel(pT); const m = modelDrivers("turbidity", tf); baseline.turbidity = m.baseline; dT = m.items; }
+  else { fallback = true; const d = turbidityFallbackDetail(readings, asOf); lT = d.level; pT = LEVEL_MIDPOINT_P[lT]; dT = [wspRuleDriver(d.text)]; }
 
-  let pD: number, lD: number;
+  let pD: number, lD: number, dD: Driver[];
   const df = buildDroughtFeatures(readings, rainHourly, asOf);
-  if (df) { pD = droughtRisk(df); lD = toSignalLevel(pD); }
-  else { fallback = true; lD = droughtFallbackLevel(readings, asOf); pD = LEVEL_MIDPOINT_P[lD]; }
+  if (df) { pD = droughtRisk(df); lD = toSignalLevel(pD); const m = modelDrivers("drought", df); baseline.drought = m.baseline; dD = m.items; }
+  else { fallback = true; const d = droughtFallbackDetail(readings, asOf); lD = d.level; pD = LEVEL_MIDPOINT_P[lD]; dD = [wspRuleDriver(d.text)]; }
 
   // WSP hard rule (spec 02): >= 500 NTU at Caramayon I is a source shut-off and forces turbidity_level 4.
   const car = upTo(readings, CARAMAYON_1, asOf.getTime()).pop();
   if (car && asOf.getTime() - t(car.recorded_at) <= FALLBACK_LOOKBACK_MS && car.turbidity_ntu >= WSP_CONSTANTS.TURBIDITY_SHUTOFF_NTU && lT < 4) {
     lT = 4;
     pT = Math.max(pT, SIGNAL_LEVEL_THRESHOLDS[3]);
+    dT = [wspRuleDriver(`WSP rule (p.43): Caramayon I at ${Math.round(car.turbidity_ntu)} NTU, at or above 500 NTU, source shut-off forces level 4`), ...dT];
   }
+  const topT = dT[0]?.feature !== "wsp_rule" ? dT[0]?.feature : undefined;
+  const topD = dD[0]?.feature !== "wsp_rule" ? dD[0]?.feature : undefined;
 
   return {
     scope: "system",
@@ -227,5 +247,7 @@ export function predict(input: {
     computed_at: asOf.toISOString(),
     fallback_used: fallback,
     forecast_source: forecastSource,
+    drivers: { turbidity: dT, drought: dD, baseline },
+    operator_actions: operatorActions(lT, lD, topT, topD),
   };
 }

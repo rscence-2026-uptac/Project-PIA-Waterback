@@ -8,4 +8,10 @@ const store = makeDisruptionStore(supabase);
 
 Deno.serve((req) => handleSnapshot(req, {
   fetchServed: () => fetchServed(supabase), findOpen: store.findOpen, fetchEvents: (id) => fetchEvents(supabase, id),
+  fetchPlantStatus: async (at) => {
+    const { data, error } = await supabase.from("readings").select("plant_status").eq("intake_id", "kulador")
+      .lte("recorded_at", at.toISOString()).order("recorded_at", { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0]?.plant_status ?? null;
+  },
 }));

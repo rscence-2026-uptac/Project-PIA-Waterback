@@ -88,7 +88,7 @@ export function PriorityMap({ points, pins, servedFirst, active, onActive, onSel
   const { t } = useCopy();
   const [map, setMap] = useState<L.Map | null>(null);
   const [tilesFailed, setTilesFailed] = useState(() => !navigator.onLine);
-  const reduce = useMemo(reduceMotion, []);
+  const reduce = useMemo(() => reduceMotion(), []);
   const byId = new Map(points.map((p) => [p.barangay_id, p]));
   const ranked = [...pins].sort((a, b) => a.rank - b.rank);
   const topRank = ranked[0]?.rank;

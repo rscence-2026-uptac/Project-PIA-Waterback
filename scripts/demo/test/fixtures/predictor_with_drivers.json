@@ -1,0 +1,4 @@
+{"asOf":"2026-07-21T22:00:00+08:00",
+ "pred":{"scope":"system","p_turbidity":0.97,"p_drought":0.01,"signal_level":4,"turbidity_level":4,"drought_level":0,"fallback_used":false,"forecast_source":"seeded",
+  "drivers":[{"feature":"forecast_rain_48h_mm","value":41.5,"contribution":8.4,"text":"41.5 mm of rain forecast in the next 48 h"},{"feature":"rain_24h_mm","value":14.2,"contribution":1.4,"text":"14.2 mm fell in the last 24 h"}],
+  "operator_actions":["Pre-position tankers","Alert Caramayon intake crew"]}}

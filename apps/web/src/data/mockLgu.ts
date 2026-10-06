@@ -89,6 +89,9 @@ export interface AffectedGroupRow extends AffectedGroup {
   name: string; // barangay display name
   service_level: "level_iii" | "level_i" | "unserved";
   reported_not_restored: boolean;
+  // Live only: first stop of the ranked chain (affected-areas top_source), and the vulnerable/critical-facility flag.
+  top_source?: AffectedArea["top_source"];
+  vulnerable_flag?: boolean;
 }
 
 // Spec 03 barangay order; used as the tiebreak inside a type.

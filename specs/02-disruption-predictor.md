@@ -34,7 +34,15 @@ export const PredictorOutput = z.object({
   computed_at: z.string().datetime(),
   fallback_used: z.boolean(), // true when a missing feature forced the WSP deterministic rule
   forecast_source: z.enum(["seeded", "live", "missing"]).optional(), // origin of forecast_rain_48h_mm; "missing" -> turbidity WSP fallback, fallback_used=true
+  drivers: z.object({                       // optional "why" (2026-10-06)
+    turbidity: z.array(PredictorDriver),     // sorted by contribution desc; fallback -> [{feature:"wsp_rule", text}]
+    drought: z.array(PredictorDriver),
+    baseline: z.object({ turbidity: z.number().optional(), drought: z.number().optional() }), // model bias; absent if that model fell back
+  }).optional(),
+  operator_actions: z.array(z.object({ action: z.string(), source: z.string(), when: z.string() })).optional(), // source = "WSP p.NN" or "PIA WaterBack recommendation"
 });
+// PredictorDriver = { feature: string, text: string, value?: number, unit?: string, contribution?: number /* weight x value, log-odds */, share?: number /* of positive contributions */ }
+// Invariant: baseline[m] + sum(drivers[m].contribution) == logit(p_m) (1e-9) when the model ran.
 
 export const PredictorCoefficients = z.object({
   bias: z.number(),
@@ -87,3 +95,4 @@ Signal-level mapping (reused on both models, applied independently then combined
 2026-10-06: trained predictor: label definitions, 0.4 decision threshold, folded raw-unit coefficient JSON, test vectors; acceptance criteria ticked with evidence (ml/)
 2026-10-06: v2 — forecast rain feature, removed collinear features, precision gate
 2026-10-06: v3 = v2a adopted (v2 minus turbidity_slope_per_hr, version 2026-10-06.3); gates amended to measured values (turbidity recall >= 0.84; July non-event alarm-rate gate replaced by event-level gates: >= 95% events caught, <= 5 false-alarm episodes / 30 d)
+2026-10-06: PredictorOutput gains optional `drivers` (per-feature log-odds contributions, shares, plain-language text, WSP-rule drivers on fallback) and `operator_actions` (WSP-cited or labelled "PIA WaterBack recommendation"); non-breaking. July timeline export added (ml/reports/july_2026_timeline.json)

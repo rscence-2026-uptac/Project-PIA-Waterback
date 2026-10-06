@@ -3,6 +3,10 @@
 import { z } from "zod";
 import { SourceType } from "./spec04";
 
+// Accepted resident-facing state per barangay (spec 03, docs/dev-a-replies.md #7). Optional: older rows omit it.
+export const ResidentStateName = z.enum(["flowing", "heads_up", "interrupted", "planned_repair", "not_on_network"]);
+export type ResidentStateName = z.infer<typeof ResidentStateName>;
+
 export const AffectedArea = z.object({
   barangay_id: z.string(),
   disruption_id: z.string().uuid().nullable(), // null when no disruption is open
@@ -14,6 +18,10 @@ export const AffectedArea = z.object({
   unpiped_households_affected: z.number().int().nonnegative().nullable(),
   coverage_confidence: z.enum(["confirmed", "estimate", "unknown"]),
   vulnerable_flag: z.boolean(), // elderly/PWD households or critical facility present
+  // Endpoint extras (optional): resident-facing state + unserved heads-up flag.
+  resident_state: ResidentStateName.optional(),
+  heads_up: z.boolean().optional(),
+  heads_up_urgency: z.enum(["possible", "likely", "very_likely"]).optional(),
   // Endpoint extras (optional): allocation-screen hints from the affected-areas function.
   suggested_rank: z.number().int().positive().nullable().optional(), // heuristic 1-based priority; null without a disruption
   top_source: z

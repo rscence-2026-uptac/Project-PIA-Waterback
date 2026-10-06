@@ -180,6 +180,19 @@ describe("contract edge cases", () => {
     expect(T.PredictorOutput.safeParse(po).success).toBe(true); // omitted: still valid
     expect(T.PredictorOutput.safeParse({ ...po, forecast_source: "guess" }).success).toBe(false);
   });
+  it("PredictorOutput drivers and operator_actions are optional and shaped", () => {
+    const po = { scope: "system", p_turbidity: 0.5, p_drought: 0.1, signal_level: 2, turbidity_level: 2, drought_level: 0, computed_at: TS, fallback_used: false };
+    const drivers = {
+      turbidity: [{ feature: "forecast_rain_48h_mm", value: 41, unit: "mm", contribution: 8.3, share: 0.9, text: "41 mm of rain forecast in the next 48 h" }],
+      drought: [{ feature: "wsp_rule", text: "WSP rule" }],
+      baseline: { turbidity: -3.07 },
+    };
+    const actions = [{ action: "Pre-dose PAC", source: "WSP p.44", when: "turbidity_level>=2" }];
+    expect(T.PredictorOutput.safeParse({ ...po, drivers, operator_actions: actions }).success).toBe(true);
+    expect(T.PredictorOutput.safeParse({ ...po, drivers: { ...drivers, baseline: undefined } }).success).toBe(false);
+    expect(T.PredictorOutput.safeParse({ ...po, operator_actions: [{ action: "x" }] }).success).toBe(false);
+    expect(T.PredictorOutput.safeParse({ ...po, drivers: { ...drivers, turbidity: [{ feature: "a" }] } }).success).toBe(false);
+  });
 });
 
 describe("Dev B handoff 2026-10-06 schema changes", () => {
@@ -223,23 +236,37 @@ describe("Dev B handoff 2026-10-06 schema changes", () => {
   });
 });
 
-describe("residentState", () => {
+describe("residentState (v2: a prediction never says water is off)", () => {
   it.each([
-    [0, "turbidity", "level_iii", "flowing", false],
-    [1, "turbidity", "level_iii", "heads_up", true],
-    [2, "drought", "level_i", "heads_up", true],
-    [3, "turbidity", "level_iii", "interrupted", false],
-    [4, "drought", "level_i", "interrupted", false],
-    [3, "repair", "level_iii", "planned_repair", false],
-    [4, "repair", "level_i", "planned_repair", false],
-    [1, "repair", "level_iii", "heads_up", true],
-    [0, null, "level_iii", "flowing", false],
-    [0, null, "unserved", "not_on_network", false],
-    [1, "turbidity", "unserved", "not_on_network", false],
-    [2, "turbidity", "unserved", "not_on_network", true],
-    [4, "repair", "unserved", "not_on_network", true],
-  ] as const)("signal %s cause %s %s -> %s heads_up=%s", (sig, cause, svc, state, heads) =>
-    expect(T.residentState(sig, cause, svc)).toEqual({ state, heads_up: heads }));
+    // [signal, cause, service, observed, state, heads_up, urgency]
+    [0, "turbidity", "level_iii", false, "flowing", false, undefined],
+    [0, null, "level_iii", true, "flowing", false, undefined],
+    [1, "turbidity", "level_iii", false, "heads_up", true, "possible"],
+    [2, "drought", "level_i", false, "heads_up", true, "likely"],
+    [3, "turbidity", "level_iii", false, "heads_up", true, "very_likely"], // the July replay case: prediction only
+    [4, "drought", "level_i", false, "heads_up", true, "very_likely"],
+    [3, "repair", "level_iii", false, "heads_up", true, "very_likely"],
+    [1, "turbidity", "level_iii", true, "interrupted", false, undefined], // e.g. Kulador degraded at signal 1
+    [3, "turbidity", "level_iii", true, "interrupted", false, undefined],
+    [4, "drought", "level_i", true, "interrupted", false, undefined],
+    [3, "repair", "level_iii", true, "planned_repair", false, undefined],
+    [4, "repair", "level_i", true, "planned_repair", false, undefined],
+    [0, null, "unserved", false, "not_on_network", false, undefined],
+    [1, "turbidity", "unserved", true, "not_on_network", false, undefined],
+    [2, "turbidity", "unserved", false, "not_on_network", true, "likely"],
+    [4, "repair", "unserved", true, "not_on_network", true, "very_likely"],
+  ] as const)("signal %s cause %s %s observed=%s -> %s heads_up=%s urgency=%s", (sig, cause, svc, observed, state, heads, urg) => {
+    const r = T.residentState(sig, cause, svc, { interruption_observed: observed });
+    expect(r).toEqual({ state, heads_up: heads, ...(urg ? { heads_up_urgency: urg } : {}) });
+    expect(r.heads_up_urgency).toBe(urg);
+  });
+  it("no options = prediction only (never interrupted)", () => {
+    expect(T.residentState(4, "turbidity", "level_iii")).toEqual({ state: "heads_up", heads_up: true, heads_up_urgency: "very_likely" });
+    expect(T.residentState(4, "turbidity", "level_iii", {})).toEqual(T.residentState(4, "turbidity", "level_iii", { interruption_observed: false }));
+  });
+  it("headsUpUrgency", () => {
+    expect([0, 1, 2, 3, 4].map(T.headsUpUrgency)).toEqual([undefined, "possible", "likely", "very_likely", "very_likely"]);
+  });
 });
 
 describe("datetime inputs accept offsets", () => {

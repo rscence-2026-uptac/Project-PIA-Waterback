@@ -17,6 +17,31 @@ export const DroughtFeatures = z.object({
 });
 export type DroughtFeatures = z.infer<typeof DroughtFeatures>;
 
+// Why a prediction is what it is. Model drivers carry value/unit/contribution/share; a fallback rule is {feature:"wsp_rule", text}.
+export const PredictorDriver = z.object({
+  feature: z.string(),                 // model feature name, or "wsp_rule"
+  text: z.string(),                    // plain language, e.g. "41 mm of rain forecast in the next 48 h"
+  value: z.number().optional(),
+  unit: z.string().optional(),
+  contribution: z.number().optional(), // weight x value, log-odds; baseline + sum == logit(p)
+  share: z.number().min(0).max(1).optional(), // fraction of the sum of positive contributions
+});
+export type PredictorDriver = z.infer<typeof PredictorDriver>;
+
+export const PredictorDrivers = z.object({
+  turbidity: z.array(PredictorDriver), // sorted by contribution, descending
+  drought: z.array(PredictorDriver),
+  baseline: z.object({ turbidity: z.number().optional(), drought: z.number().optional() }), // model bias; absent for a model that fell back
+});
+export type PredictorDrivers = z.infer<typeof PredictorDrivers>;
+
+export const OperatorAction = z.object({
+  action: z.string(),
+  source: z.string(), // "WSP p.44" ... or "PIA WaterBack recommendation" (not in the WSP)
+  when: z.string(),   // which level / top driver selected it
+});
+export type OperatorAction = z.infer<typeof OperatorAction>;
+
 export const PredictorOutput = z.object({
   scope: z.literal("system"), // blended network -> one system-wide prediction; spec 03 fans out to barangays
   p_turbidity: z.number().min(0).max(1),
@@ -27,6 +52,8 @@ export const PredictorOutput = z.object({
   computed_at: z.iso.datetime({ offset: true }),
   fallback_used: z.boolean(), // true when a missing feature forced the WSP deterministic rule
   forecast_source: z.enum(["seeded", "live", "missing"]).optional(), // where forecast_rain_48h_mm came from (optional: older responses omit it)
+  drivers: PredictorDrivers.optional(),               // 2026-10-06: why (optional: older responses omit it)
+  operator_actions: z.array(OperatorAction).optional(), // recommended actions for the current levels
 });
 export type PredictorOutput = z.infer<typeof PredictorOutput>;
 

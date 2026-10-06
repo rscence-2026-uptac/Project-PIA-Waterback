@@ -1,21 +1,25 @@
 // SPEC: 05 — barangay water captain view, works offline from the cached status (wireframe p.7).
 // The morning-round source check has no spec yet: choices are kept on this phone only (flagged).
 import { useSyncExternalStore } from "react";
+import type { WaterState } from "../../lib/waterState";
 import { useCopy } from "../../copy/i18n";
 import type { CopyKeyName } from "../../copy/strings";
 import { BARANGAYS, type CaptainSource, type BarangaySnapshot } from "../../data/mock";
 import { useBarangay } from "../../lib/barangay";
 import { readSetting, subscribeSetting, writeSetting } from "../../lib/settings";
 import { formatTime, formatWindow } from "../../lib/time";
-import { waterState } from "../../lib/waterState";
+import { snapshotWaterState } from "../../lib/snapshotState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
-import { StatusChip } from "../../ui/Chip";
+import { SampleChip, StatusChip } from "../../ui/Chip";
 import { Logo } from "../../ui/Logo";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
 import { safetyText } from "../../copy/labels";
 import { useToast } from "../../ui/Toast";
 import { ConfirmWaterBack } from "../../ui/ConfirmWaterBack";
+import { HeadsUpCard } from "../../ui/HeadsUpCard";
+import { isLive } from "../../api/client";
+import { AFFECTED } from "../../data/mockLgu";
 
 export function CaptainScreen() {
   const { t } = useCopy();
@@ -63,7 +67,7 @@ function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
 }) {
   const { t } = useCopy();
   const { captain, detail } = snapshot;
-  const state = waterState(signalLevel, detail.cause);
+  const state = snapshotWaterState(snapshot, signalLevel);
   const pipedOff = state === "interrupted" || state === "repair";
 
   return (
@@ -116,6 +120,15 @@ function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
         </section>
       )}
 
+      {state === "headsup" && (
+        <HeadsUpCard
+          snapshot={snapshot}
+          compact
+          // Live endpoints give no household counts yet (only a vulnerable flag), so the count shows from the sample list only.
+          vulnerable={snapshot.vulnerable_households ?? (isLive() ? undefined : AFFECTED.find((a) => a.barangay_id === snapshot.status.barangay_id)?.vulnerable_households)}
+        />
+      )}
+
       {pipedOff && detail.disruption_id && (
         <ConfirmWaterBack
           disruptionId={detail.disruption_id}
@@ -125,20 +138,25 @@ function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
         />
       )}
 
-      <MorningRound barangayId={snapshot.status.barangay_id} sources={captain.sources} reach={captain.households_reached} />
+      <Checklist barangayId={snapshot.status.barangay_id} state={state} snapshot={snapshot} />
+
+      <MorningRound barangayId={snapshot.status.barangay_id} sources={captain.sources} reach={captain.live ? null : captain.households_reached} />
 
       <section className="mt-8" aria-labelledby="updates-title">
         <h2 id="updates-title" className="text-[28px] leading-tight">{t("captain.updates_title")}</h2>
         <div className="mt-3 grid grid-cols-2 gap-3">
+          {/* Live: delivered = outbound SMS logged for this barangay. "Went to a working source" and the thank-yous have no backend. */}
           <div className="rounded-xl bg-sky p-4">
-            <p className="numeral text-[44px]">{captain.delivered}</p>
+            <p className="numeral text-[44px]">{captain.delivered ?? "—"}</p>
             <p className="mt-1">{t("captain.delivered")}</p>
           </div>
           <div className="rounded-xl bg-mist p-4">
             <p className="numeral text-[44px]">{captain.to_working}</p>
             <p className="mt-1">{t("captain.to_working")}</p>
+            {captain.live && <SampleChip className="mt-2" />}
           </div>
         </div>
+        {captain.live && captain.thanks.length > 0 && <SampleChip className="mt-3" />}
         <ul className="mt-3 flex flex-col gap-3">
           {captain.thanks.map((thanks) => (
             <li key={thanks.at} className="rounded-xl bg-mist p-4">
@@ -180,7 +198,7 @@ function useRound(barangayId: string) {
   return { saved, record };
 }
 
-function MorningRound({ barangayId, sources, reach }: { barangayId: string; sources: CaptainSource[]; reach: number }) {
+function MorningRound({ barangayId, sources, reach }: { barangayId: string; sources: CaptainSource[]; reach: number | null }) {
   const { t } = useCopy();
   const { saved, record } = useRound(barangayId);
   const { show, toast } = useToast();
@@ -226,7 +244,7 @@ function MorningRound({ barangayId, sources, reach }: { barangayId: string; sour
                     aria-checked={selected}
                     onClick={() => {
                       record(row.id, segment.status);
-                      show(t("captain.toast", { n: reach }));
+                      show(reach === null ? t("captain.toast_saved") : t("captain.toast", { n: reach }));
                     }}
                     className={`press h-11 rounded-sm text-[15px] font-bold ${selected ? segment.selected : "bg-mist text-ink"}`}
                   >
@@ -239,6 +257,63 @@ function MorningRound({ barangayId, sources, reach }: { barangayId: string; sour
         ))}
       </ul>
       {toast}
+    </section>
+  );
+}
+
+// ---------- Suggested checklist: derived from the water state and the disruption, no backend needed ----------
+
+type CheckId = "notify" | "containers" | "coordinate" | "update" | "thanks" | "round";
+
+function checklistFor(state: WaterState, snapshot: BarangaySnapshot): CheckId[] {
+  if (state === "headsup") return ["notify", "containers"];
+  if (state === "interrupted" || state === "repair") return ["coordinate", "update"];
+  if (snapshot.detail.restored_at) return ["thanks"];
+  return ["round"];
+}
+
+function Checklist({ barangayId, state, snapshot }: { barangayId: string; state: WaterState; snapshot: BarangaySnapshot }) {
+  const { t } = useCopy();
+  const key = `captain.checklist.${barangayId}.${snapshot.detail.disruption_id ?? "none"}.${state}`;
+  const raw = useSyncExternalStore(subscribeSetting, () => readSetting(key), () => null);
+  let done: string[] = [];
+  try {
+    done = raw ? JSON.parse(raw) : [];
+  } catch {
+    done = [];
+  }
+  const toggle = (id: CheckId) => writeSetting(key, JSON.stringify(done.includes(id) ? done.filter((d) => d !== id) : [...done, id]));
+  // First stop of the ranked chain; sources are ranked, so the first one is the one to coordinate with.
+  const first = snapshot.sources[0];
+  const label = (id: CheckId): string =>
+    id === "notify" ? t("captain.check.notify_vulnerable")
+    : id === "containers" ? t("captain.check.containers")
+    : id === "coordinate" ? (first ? t("captain.check.coordinate", { name: first.name }) : t("captain.check.coordinate_any"))
+    : id === "update" ? t("captain.check.update_households")
+    : id === "thanks" ? t("captain.check.collect_thanks")
+    : t("captain.check.round");
+  return (
+    <section className="mt-8" aria-labelledby="checklist-title">
+      <h2 id="checklist-title" className="text-[28px] leading-tight">{t("captain.checklist_title")}</h2>
+      <p className="mt-1 text-[14px] text-ink-soft">{t("captain.checklist_note")}</p>
+      <ul className="mt-3 flex flex-col gap-2">
+        {checklistFor(state, snapshot).map((id) => {
+          const on = done.includes(id);
+          return (
+            <li key={id}>
+              <button
+                type="button" role="checkbox" aria-checked={on} onClick={() => toggle(id)}
+                className={`press flex min-h-12 w-full items-center gap-3 rounded-xl border-[1.5px] p-3 text-left ${on ? "border-water bg-sky" : "border-haze bg-foam"}`}
+              >
+                <span className={`flex size-7 shrink-0 items-center justify-center rounded-sm ${on ? "bg-water text-foam" : "border-2 border-haze"}`}>
+                  {on && <Icon name="check" size={16} strokeWidth={3} />}
+                </span>
+                <span className={on ? "text-ink-soft line-through" : ""}>{label(id)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

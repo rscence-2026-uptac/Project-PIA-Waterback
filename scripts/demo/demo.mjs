@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // PIA Waterback demo driver. Calls ONLY Edge Functions with the anon key (like the app), plus service-role reset.
-// Usage: node scripts/demo/demo.mjs <status|reset|run|listen|verify-realtime|sms|reply> [flags]  (see README.md)
+// Usage: node scripts/demo/demo.mjs <status|reset|run|replay|listen|verify-realtime|sms|reply> [flags]  (see README.md)
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as R from "./replay_lib.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_REF = "vxlaitnrhlucsmqkjofp";
@@ -487,11 +488,109 @@ async function cmdReply() {
   out(`<< reply (${data.sms?.mode}): ${data.reply}`);
 }
 
+
+// ---------- replay: the predictor in the real world ----------
+async function pageAll(build) { // PostgREST pages of 1000 (anon, read-only)
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().range(from, from + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...data);
+    if (data.length < 1000) return rows;
+  }
+}
+async function cmdReplay() {
+  config();
+  const preset = flags.scenario === undefined ? "late-july" : flags.scenario;
+  if (!R.SCENARIOS[preset]) die(`unknown --scenario "${preset}" (late-july | crisis)`);
+  const sc = R.SCENARIOS[preset];
+  const from = typeof flags.from === "string" ? flags.from : sc.from;
+  const to = typeof flags.to === "string" ? flags.to : sc.to;
+  const everyMs = R.parseEvery(typeof flags.every === "string" ? flags.every : sc.every);
+  const dry = !!flags.dry;
+  const color = process.stdout.isTTY && !process.env.NO_COLOR;
+  const delay = Number(flags.speed ?? (dry ? 0 : 1200));
+  let list; try { list = R.ticks(from, to, everyMs); } catch (e) { die(e.message); }
+  const H = 3_600_000;
+
+  out(`PIA Waterback: the predictor in the real world${dry ? "  [DRY: predictor only, nothing is written]" : ""}`);
+  out(`${R.clock(list[0])} -> ${R.clock(list[list.length - 1])} (Asia/Manila), ${list.length} ticks every ${Math.round(everyMs / 60000)} min, scenario ${preset}`);
+
+  if (!dry) {
+    const c = await counts(config().service ? serviceClient() : anonClient());
+    if (!isClean(c)) die(`Not a clean baseline (${JSON.stringify(c)}). The replay writes a disruption, so start clean:  node scripts/demo/demo.mjs reset --yes${flags["from-cli"] ? " --from-cli" : ""}`);
+    ok("clean baseline; SMS stays dry-run (the function only sends live when its SMS_LIVE secret is true)");
+    process.on("SIGINT", () => {
+      out(`\n\nInterrupted. The replay wrote a disruption and events. Put the demo back to baseline with:\n  node scripts/demo/demo.mjs reset --yes${flags["from-cli"] ? " --from-cli" : ""}`);
+      process.exit(130);
+    });
+  }
+
+  // read-only context for rain fallback and plant events (anon REST)
+  const sb = anonClient();
+  const t0 = list[0].getTime(), t1 = list[list.length - 1].getTime();
+  const iso = (ms) => new Date(ms).toISOString();
+  let rain = [], fc = [], readings = [];
+  const soft = async (label, f) => { try { return await f(); } catch (e) { info(`(${label} unavailable: ${e.message})`); return []; } };
+  [rain, fc, readings] = await Promise.all([
+    soft("rainfall_hourly", () => pageAll(() => sb.from("rainfall_hourly").select("ts,precipitation_mm").gte("ts", iso(t0 - 24 * H)).lte("ts", iso(t1)).order("ts"))),
+    soft("rain_forecast_hourly", () => pageAll(() => sb.from("rain_forecast_hourly").select("ts,precipitation_mm").gte("ts", iso(t0)).lte("ts", iso(t1 + 48 * H)).order("ts"))),
+    soft("readings", () => pageAll(() => sb.from("readings").select("intake_id,recorded_at,turbidity_ntu,plant_status").in("intake_id", ["kulador", "caramayon_1", "caramayon_2"]).gte("recorded_at", iso(t0 - everyMs)).lte("recorded_at", iso(t1)).order("recorded_at"))),
+  ]);
+  const firstEv = R.firstEvents(readings);
+  out("");
+
+  const history = [];
+  const seen = [];
+  let headsUpAt = null, lastSignal = 0, smsPlanned = 0, smsSkipped = 0, prev = new Date(t0 - everyMs);
+  for (const asOf of list) {
+    if (flags.step && history.length) await pause(`next tick ${R.clock(asOf)}`);
+    let pred;
+    try { ({ data: pred } = await fn("disruption-predictor", { method: "GET", query: { as_of: R.manilaIso(asOf) } })); }
+    catch (e) { out(`${R.clock(asOf)} | predictor error: ${e.message}`); prev = asOf; continue; }
+    const tick = R.buildTick(asOf, pred, rain, fc);
+    history.push(tick);
+    out(R.formatTick(tick, { color }));
+    if (dry && tick.signal >= 2 && !headsUpAt) headsUpAt = asOf; // dry: first alarm
+
+    if (!dry) {
+      let mon;
+      try { ({ data: mon } = await fn("disruption-monitor", { body: { as_of: R.manilaIso(asOf) } })); }
+      catch (e) { out(`      monitor error: ${e.message}`); mon = null; }
+      if (mon) {
+        const sig = mon.disruption?.signal_level ?? tick.signal;
+        const hu = mon.heads_up;
+        const fired = mon.action === "created" || (mon.action === "updated" && sig > lastSignal && sig >= 2) || (hu && (hu.barangays?.length || hu.sms_planned));
+        if (mon.action === "created" && !headsUpAt) headsUpAt = asOf;
+        if (fired) {
+          let areas = [];
+          if (mon.disruption?.id) {
+            try {
+              const { data } = await fn("affected-areas", { method: "GET", query: { as_of: R.manilaIso(asOf), disruption_id: mon.disruption.id, min_signal: "2" } });
+              areas = (Array.isArray(data) ? data : []).filter((a) => a.resident_state !== "not_on_network").sort((a, b) => (a.suggested_rank ?? 1e9) - (b.suggested_rank ?? 1e9));
+            } catch (e) { info(`(affected-areas unavailable: ${e.message})`); }
+          }
+          out(R.formatHeadsUp({ monitor: { ...mon, prediction: mon.prediction ?? pred }, areas, color }));
+          if (hu) { smsPlanned += Number(hu.sms_planned) || 0; smsSkipped += Number(hu.sms_skipped_demo) || 0; }
+        }
+        lastSignal = Math.max(lastSignal, sig);
+      }
+    }
+    for (const e of R.eventsInWindow(firstEv, prev, asOf)) { out(R.formatEvent(e, { color })); seen.push(e); }
+    prev = asOf;
+    if (delay && !flags.step && asOf !== list[list.length - 1]) await sleep(delay);
+  }
+  // events outside the tick grid (before first tick window) are ignored; first event overall within the replay:
+  const first = seen.sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0] ?? null;
+  out(R.formatSummary({ history, headsUpAt, firstEvent: first, dry, sms: !dry ? { planned: smsPlanned, skipped: smsSkipped } : null }));
+  if (!dry) out(`\nReset when done:  node scripts/demo/demo.mjs reset --yes${flags["from-cli"] ? " --from-cli" : ""}`);
+}
+
 // ---------- main ----------
-const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, listen: cmdListen, "verify-realtime": cmdVerify, sms: cmdSms, reply: cmdReply };
+const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, replay: cmdReplay, listen: cmdListen, "verify-realtime": cmdVerify, sms: cmdSms, reply: cmdReply };
 if (!commands[command]) {
   out("Usage: node scripts/demo/demo.mjs <command> [flags]\n");
-  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n  sms [--seconds S] [--history N]        simulated handset: tail sms_outbox\n  reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
+  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  replay [--scenario late-july|crisis] [--from ISO] [--to ISO] [--every 3h] [--step] [--speed ms] [--dry]\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n  sms [--seconds S] [--history N]        simulated handset: tail sms_outbox\n  reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
   process.exit(command ? 2 : 0);
 }
 try { await commands[command](); process.exit(process.exitCode ?? 0); }
