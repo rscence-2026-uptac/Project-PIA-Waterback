@@ -1,15 +1,14 @@
 // SPEC: 05 — resident status, last-known status from cache when offline (wireframe p.4).
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { useCopy } from "../../copy/i18n";
 import type { DisruptionDetail, BarangaySnapshot } from "../../data/mock";
 import { useBarangay } from "../../lib/barangay";
 import { readSetting, subscribeSetting, writeSetting } from "../../lib/settings";
-import { formatShortTime, formatTime, formatWindow } from "../../lib/time";
+import { formatShortTime, formatTime, formatWindow, minutesBetween } from "../../lib/time";
 import { dropLook, waterState, type WaterState } from "../../lib/waterState";
 import { useBarangayStatus } from "../../offline/useBarangayStatus";
 import { Button, ButtonLink } from "../../ui/Button";
-import { StatusChip } from "../../ui/Chip";
 import { DropGauge } from "../../ui/Drop";
 import { Icon } from "../../ui/Icon";
 import { ScreenStateView } from "../../ui/ScreenStateView";
@@ -25,7 +24,7 @@ export function StatusScreen() {
   return (
     <>
       <ResidentHeader />
-      <ConnectionLine stale={status.view?.is_stale ?? false} savedAt={status.view?.last_synced_at ?? null} />
+      {status.view?.is_stale && status.view.last_synced_at && <ConnectionLine savedAt={status.view.last_synced_at} />}
       <ScreenStateView state={status.state} onRetry={status.retry}>
         {() => status.snapshot && status.view && <StatusBody snapshot={status.snapshot} signalLevel={status.view.signal_level} />}
       </ScreenStateView>
@@ -72,14 +71,9 @@ function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDe
 
   return (
     <section className="mt-4 rounded-hero bg-sky px-[18px] py-5" aria-labelledby="status-headline">
-      <div className="flex items-center justify-between gap-3">
-        <StatusChip state={state} />
-        <span className="text-[14px] text-ink">{t("app.updated_at", { time: formatTime(detail.updated_at) })}</span>
-      </div>
-
-      <div className="mt-3 flex items-start gap-4">
-        <DropGauge look={dropLook(state, detail.cause)} width={96} className="shrink-0" />
-        <div className="pt-1">
+      <div className="flex items-center gap-4">
+        <DropGauge look={dropLook(state, detail.cause)} width={72} className="shrink-0" />
+        <div className="min-w-0">
           <h1 id="status-headline" className="text-[30px] leading-[1.05] tracking-[-0.03em] text-ink">
             {t(`state.${state}.headline`)}
           </h1>
@@ -103,84 +97,99 @@ function StatusCard({ state, detail }: { state: WaterState; detail: DisruptionDe
           </ButtonLink>
         </div>
       )}
-
-      <p className="mt-4 flex gap-2.5 text-[15px] text-ink">
-        <Icon name="bell" size={18} className="mt-0.5" />
-        <span>
-          <strong>{t("status.next_update_by", { time: formatTime(detail.next_update_at) })}</strong>
-          {t("status.next_update_rest")}
-        </span>
-      </p>
     </section>
   );
 }
 
+function useNow() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 function TimeWindowCard({ detail }: { detail: DisruptionDetail }) {
   const { t } = useCopy();
+  const now = useNow();
+  const start = new Date(detail.window_start!);
+  const end = new Date(detail.window_end!);
+  const late = now >= end;
+  const minutesDry = detail.started_at ? Math.max(0, minutesBetween(detail.started_at, now)) : null;
+  const hoursDry = minutesDry === null ? 0 : Math.round(minutesDry / 60);
+
   return (
     <div className="mt-4 rounded-xl bg-foam p-4">
-      <p className="text-[15px] font-bold">{t("status.back_between")}</p>
-      <div className="mt-1 flex items-start justify-between gap-3">
-        <p className="numeral text-[52px] text-ink">{formatWindow(detail.window_start!, detail.window_end!)}</p>
-        {detail.likely_at && (
-          <p className="rounded-sm bg-mist px-3 py-2 text-center text-[14px] leading-tight">
-            {t("status.most_likely")}
-            <br />
-            <strong className="text-[15px]">{formatTime(detail.likely_at)}</strong>
-          </p>
-        )}
-      </div>
-      <DayTimeline detail={detail} />
+      {minutesDry !== null && (
+        <p className="flex items-center gap-2.5 rounded-sm bg-coral-wash px-3 py-3 text-[20px] font-bold leading-tight text-ink">
+          <Icon name="dropOff" size={26} className="shrink-0 text-coral-deep" />
+          {minutesDry < 60 ? t("status.dry_minutes", { n: Math.max(1, minutesDry) })
+            : hoursDry === 1 ? t("status.dry_hour")
+            : t("status.dry_hours", { n: hoursDry })}
+        </p>
+      )}
+      <p className="mt-4 text-[16px] font-bold">
+        {start.toDateString() === now.toDateString() ? t("status.back_between") : t("status.back_between_tomorrow")}
+      </p>
+      <p className="numeral mt-1 text-[44px] text-ink">{formatWindow(start, end)}</p>
+      {late ? (
+        <p className="mt-3 flex gap-2.5 text-[18px] font-bold text-ink">
+          <Icon name="alert" size={22} className="mt-0.5 shrink-0" />
+          {t("status.wait_late", { time: formatTime(end) })}
+        </p>
+      ) : (
+        detail.started_at && <OutageTimeline stopped={new Date(detail.started_at)} now={now} start={start} end={end} />
+      )}
     </div>
   );
 }
 
-// 6 AM → 12 AM, the day a resident is waiting through.
-const DAY_START_H = 6;
-const DAY_SPAN_H = 18;
-
-function dayPosition(iso: string | Date) {
-  const d = new Date(iso);
-  const hours = d.getHours() + d.getMinutes() / 60 - DAY_START_H;
-  return Math.min(Math.max(hours / DAY_SPAN_H, 0), 1) * 100;
-}
-
-function DayTimeline({ detail }: { detail: DisruptionDetail }) {
+/**
+ * The outage on one line: dry so far (coral), still to wait (pale), the window water is due back (blue).
+ * Every point is named in words below the bar, so nothing depends on colour (spec 08).
+ */
+function OutageTimeline({ stopped, now, start, end }: { stopped: Date; now: Date; start: Date; end: Date }) {
   const { t } = useCopy();
-  const now = dayPosition(new Date());
-  const start = dayPosition(detail.window_start!);
-  const end = dayPosition(detail.window_end!);
-  const likely = detail.likely_at ? dayPosition(detail.likely_at) : null;
-  const backAt = (start + end) / 2;
-  // When "Now" sits close to the window, push the two labels apart instead of overlapping.
-  const crowded = Math.abs(now - backAt) < 16;
-  const nowFirst = now <= backAt;
-  const nowShift = !crowded ? "-translate-x-1/2" : nowFirst ? "-translate-x-[calc(100%+6px)]" : "translate-x-[6px]";
-  const backShift = !crowded ? "-translate-x-1/2" : nowFirst ? "translate-x-[14px]" : "-translate-x-[calc(100%+14px)]";
-  const backLeft = !crowded ? backAt : nowFirst ? Math.max(now, start) : Math.min(now, end);
+  const span = end.getTime() - stopped.getTime();
+  const pct = (d: Date) => Math.min(Math.max(((d.getTime() - stopped.getTime()) / span) * 100, 0), 100);
+  const nowP = pct(now);
+  const startP = pct(start);
+  // "Now" sits under its marker, but never over the two end labels.
+  const nowLabelP = Math.min(Math.max(nowP, 34), 66);
 
   return (
-    <div className="mt-4" aria-hidden="true">
-      <div className="relative h-5 whitespace-nowrap text-[13px] font-bold">
-        <span className={`absolute ${nowShift}`} style={{ left: `${now}%` }}>{t("status.now")}</span>
-        <span className={`absolute ${backShift}`} style={{ left: `${backLeft}%` }}>{t("status.back")}</span>
-      </div>
-      <div className="relative mt-1 h-2 rounded-full bg-mist">
-        <div className="h-full rounded-full bg-sky" style={{ width: `${now}%` }} />
-        <div className="absolute -top-1.5 h-5 rounded-full bg-water" style={{ left: `${start}%`, width: `${end - start}%` }} />
-        {likely !== null && <div className="absolute -top-2 h-6 w-[3px] rounded-full bg-ink" style={{ left: `${likely}%` }} />}
+    <figure className="mt-4">
+      <figcaption className="sr-only">
+        {t("status.chart_sr", { stopped: formatTime(stopped), now: formatTime(now), window: formatWindow(start, end) })}
+      </figcaption>
+      <div className="relative h-3" aria-hidden="true">
+        <div className="absolute inset-0 rounded-full bg-mist" />
+        <div className="absolute inset-y-0 left-0 rounded-l-full bg-coral" style={{ width: `${nowP}%` }} />
         <div
-          className="absolute -top-[5px] size-[18px] -translate-x-1/2 rounded-full border-[3px] border-ink bg-foam"
-          style={{ left: `${now}%` }}
+          className="absolute inset-y-0 rounded-full bg-water ring-2 ring-foam"
+          style={{ left: `${startP}%`, width: `${100 - startP}%` }}
+        />
+        <div
+          className="absolute top-1/2 size-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-ink bg-foam"
+          style={{ left: `${nowP}%` }}
         />
       </div>
-      <div className="relative mt-2 h-5 text-[13px] text-ink-soft">
-        <span className="absolute left-0">{t("status.scale_6am")}</span>
-        <span className="absolute left-1/3 -translate-x-1/2">{t("status.scale_noon")}</span>
-        <span className="absolute left-2/3 -translate-x-1/2">{t("status.scale_6pm")}</span>
-        <span className="absolute right-0">{t("status.scale_12am")}</span>
+      <div className="relative mt-3 h-[46px] text-[16px] leading-tight" aria-hidden="true">
+        <p className="absolute left-0 top-0">
+          <span className="block font-bold">{t("status.chart_stopped")}</span>
+          <span className="text-ink-soft">{formatTime(stopped)}</span>
+        </p>
+        <p className="absolute top-0 -translate-x-1/2 text-center" style={{ left: `${nowLabelP}%` }}>
+          <span className="block font-bold">{t("status.now")}</span>
+          <span className="text-ink-soft">{formatTime(now)}</span>
+        </p>
+        <p className="absolute right-0 top-0 text-right">
+          <span className="block font-bold">{t("status.chart_back")}</span>
+          <span className="text-ink-soft">{formatWindow(start, end)}</span>
+        </p>
       </div>
-    </div>
+    </figure>
   );
 }
 
@@ -294,7 +303,7 @@ function RunOutSection({ snapshot }: { snapshot: BarangaySnapshot }) {
       <Link to="/sources" className="press mt-3 block rounded-xl border-[1.5px] border-haze p-4">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[15px] font-bold text-tide">{t("runout.nearest", { letter: nearest.letter })}</span>
-          <LiveStatusLabel live={nearest.live} />
+          {nearest.live && <LiveStatusLabel live={nearest.live} />}
         </div>
         <p className="mt-1 font-display text-[22px] leading-tight">{nearest.name}</p>
         <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -303,9 +312,11 @@ function RunOutSection({ snapshot }: { snapshot: BarangaySnapshot }) {
           <CostLabel source={nearest} />
         </p>
         {nearest.is_simulated && <p className="mt-2"><SimulatedLabel source={nearest} /></p>}
-        <p className="mt-2 text-[15px] text-ink-soft">
-          {t("source.checked_by", { name: nearest.reported_by, time: formatTime(nearest.reported_at) })}
-        </p>
+        {nearest.reported_by && nearest.reported_at && (
+          <p className="mt-2 text-[15px] text-ink-soft">
+            {t("source.checked_by", { name: nearest.reported_by, time: formatTime(nearest.reported_at) })}
+          </p>
+        )}
       </Link>
       <ButtonLink to="/sources" className="mt-4 w-full" trailingIcon="chevronRight">
         {t("runout.see_all", { n: snapshot.sources.length })}

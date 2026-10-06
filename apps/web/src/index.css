@@ -15,6 +15,8 @@
   --color-coral: #f4846c;
   --color-coral-wash: #fdebe6;
   --color-coral-deep: #b23f2a;
+  --color-amber: #a5670f; /* Commercial badge/pin, 4.6:1 on white (spec 09) */
+  --color-plum: #6b4c8a; /* Industrial badge/pin, 6.9:1 on white (spec 09) */
   --color-water-murky: #4f8eac;
   --color-water-cloudy: #93a3a8;
 
@@ -156,7 +158,66 @@
   animation: panel-in 260ms var(--ease-soft) both;
 }
 
+/* Maps (spec 09 LGU priority map, spec 05 sources map). Standard OSM tiles in their normal colours. */
+.pia-map .leaflet-container {
+  font-family: var(--font-body, inherit);
+  background: var(--color-mist);
+}
+.pia-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--color-foam) 85%, transparent);
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  border-top-left-radius: 8px;
+}
+.pia-map .leaflet-control-attribution a {
+  color: var(--color-tide);
+}
+.pia-map .leaflet-marker-icon:focus-visible {
+  outline: 3px solid var(--color-ink);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+/* Barangay names sit on the map like cartographic labels, not boxed tooltips. */
+.pia-map .map-label {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: var(--color-ink);
+  font-weight: 700;
+  font-size: 13px;
+  text-shadow: 0 0 3px var(--color-foam), 0 0 3px var(--color-foam), 0 0 6px var(--color-foam);
+}
+.pia-map .map-label::before {
+  display: none;
+}
+.pia-map .map-label-top {
+  font-size: 15px;
+}
+
+/* Rank 1: water rippling out from the pin (DESIGN.md: motion is spent on water). */
+@keyframes beacon {
+  from { transform: scale(1); opacity: 0.55; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+
+.beacon-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  animation: beacon 2.8s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+  pointer-events: none;
+}
+
+.beacon-ring + .beacon-ring {
+  animation-delay: 1.4s;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .beacon-ring {
+    display: none;
+  }
   .ripple {
     animation: none;
   }

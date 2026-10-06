@@ -62,3 +62,9 @@ export function todayAt(hours: number, minutes = 0, dayOffset = 0): string {
   d.setHours(hours, minutes, 0, 0);
   return d.toISOString();
 }
+
+/** Now plus the given hours, rounded to the nearest half hour, as an ISO string. */
+export function fromNow(hours: number): string {
+  const half = 30 * 60_000;
+  return new Date(Math.round((Date.now() + hours * 3_600_000) / half) * half).toISOString();
+}

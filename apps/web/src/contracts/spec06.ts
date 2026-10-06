@@ -2,6 +2,7 @@
 // Same shapes as packages/shared-types/src/schemas/allocation.ts on Dev A's backend branch;
 // switch to that import once it merges (it uses zod 3, the app uses zod 4).
 import { z } from "zod";
+import { ConsumerType } from "./spec09";
 
 export const AllocationDecision = z.object({
   disruption_id: z.string().uuid(),
@@ -10,6 +11,7 @@ export const AllocationDecision = z.object({
   officer_id: z.string(),
   overridden_from_suggested_rank: z.number().int().positive().nullable(), // null = accepted as suggested
   note: z.string().optional(),
+  consumer_type: ConsumerType.optional(), // SPEC: 09 — which group of the barangay this rank is for
 });
 export type AllocationDecision = z.infer<typeof AllocationDecision>;
 

@@ -52,7 +52,7 @@ const WORST_CASE: Record<string, string> = {
   barangay: "Guinsorongan",
   barangays: "Guinsorongan and San Andres",
   since: "11:45AM",
-  cause: "River too muddy to treat",
+  cause: "Water too turbid to treat",
   window: "11AM-2PM",
   likely: "12:30PM",
   litres: "60",

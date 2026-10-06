@@ -2,15 +2,16 @@
 // Real sources, once they exist:
 //   status + signal level ........ Dev A's Supabase (specs 00, 02)
 //   cause, time window, next update  spec 06 NotificationPayload
-//   backup sources ............... spec 04 RankedChain
+//   backup sources ............... Dev A's seed (data/seedSources.ts), ranked like spec 04; RankedChain later
 //   captain round, thank-yous .... no spec yet (flagged)
 //   operator readings ............ spec 01 seed data
 // Names, counts and readings are sample data, as the wireframes say.
 import type { BarangayStatusView } from "../contracts/spec05";
 import type { RankedSource } from "../contracts/spec04";
-import { WSP_CONSTANTS } from "../contracts/wsp";
-import { todayAt } from "../lib/time";
+import { rankSeedSources, toBackupSource } from "../lib/backupSource";
+import { fromNow, todayAt } from "../lib/time";
 import { CATBALOGAN_BARANGAYS } from "./barangays";
+import { SEED_SOURCES } from "./seedSources";
 
 export type Cause = "turbidity" | "drought" | "repair";
 export type Safety = "safe" | "boil" | "washing";
@@ -46,12 +47,15 @@ export interface BackupSource extends RankedSource {
   letter: string;
   walk_minutes: number;
   safety: Safety;
-  live: LiveStatus;
-  reported_by: string;
-  reported_at: string;
+  // Live status and who reported it come from captains and partners (no feed yet); absent = not shown.
+  live?: LiveStatus;
+  reported_by?: string;
+  reported_at?: string;
   price_litres: number | null;
   bring_containers: boolean;
   note: string | null;
+  lat: number | null; // null = no fixed location (simulated truck stop, neighbour supply)
+  lng: number | null;
 }
 
 export interface CaptainSource {
@@ -98,53 +102,10 @@ export const BARANGAYS: Barangay[] = CATBALOGAN_BARANGAYS.map((brgy) => ({
   served: brgy.served,
 }));
 
-const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
-
-function source(
-  rank: number,
-  letter: string,
-  fields: Omit<BackupSource, "rank" | "letter" | "exceeds_jmp_benchmark" | "source_id">,
-): BackupSource {
-  return {
-    ...fields,
-    provenance: "placeholder", // MOCK: every wireframe source is sample data until the rank-chain feed is wired
-    is_simulated: true,
-    rank,
-    letter,
-    source_id: `00000000-0000-4000-8000-00000000000${rank}`,
-    exceeds_jmp_benchmark: fields.travel_minutes > jmp,
-  };
-}
-
-/** The wireframe's Plan A–D chain, placed in the given barangay. */
-function sourcesFor(barangay: string): BackupSource[] {
-  return [
-    source(1, "A", {
-      name: `Public faucet, ${barangay} plaza`, type: "communal_tap", safety_score: 0.95, safety: "safe",
-      travel_minutes: 15, walk_minutes: 6, cost_php_per_unit: 0, price_litres: null,
-      live: { kind: "flowing" }, reported_by: "Liza", reported_at: todayAt(7, 40),
-      bring_containers: false, note: null,
-    }),
-    source(2, "B", {
-      name: "Bayani Refilling Station", type: "refill_station", safety_score: 0.95, safety: "safe",
-      travel_minutes: 22, walk_minutes: 9, cost_php_per_unit: 25, price_litres: 20,
-      live: { kind: "open_stock" }, reported_by: "Owner", reported_at: todayAt(7, 52),
-      bring_containers: false, note: null,
-    }),
-    source(3, "C", {
-      name: `Barangay deep well, ${barangay} hall`, type: "communal_tap", safety_score: 0.6, safety: "boil",
-      travel_minutes: 38, walk_minutes: 14, cost_php_per_unit: 0, price_litres: null,
-      live: { kind: "queue", people: 10 }, reported_by: "Liza", reported_at: todayAt(7, 40),
-      bring_containers: false, note: null,
-    }),
-    source(4, "D", {
-      name: `LGU water truck at ${barangay} chapel`, type: "trucking", safety_score: 0.95, safety: "safe",
-      travel_minutes: 6, walk_minutes: 3, cost_php_per_unit: 0, price_litres: null,
-      live: { kind: "scheduled", at: todayAt(14) }, reported_by: "LGU", reported_at: todayAt(6, 31),
-      bring_containers: true,
-      note: "Your barangay is second on the truck route. Households with elderly or bedridden members are served first.",
-    }),
-  ];
+/** Dev A's seed sources for the barangay, ranked as spec 04 would for this cause. */
+function sourcesFor(barangayId: string, cause: Cause | null): BackupSource[] {
+  const rows = SEED_SOURCES.filter((src) => src.barangay_id === barangayId);
+  return rankSeedSources(rows, cause).map(toBackupSource);
 }
 
 const STORAGE: StoragePlan = { people: 4, per_person_l: 15, container_l: 20, containers: 3 };
@@ -180,9 +141,10 @@ const NO_DISRUPTION: DisruptionDetail = {
 
 const TURBIDITY_OUTAGE: DisruptionDetail = {
   disruption_id: EVENT_DISRUPTION_ID, restored_at: null,
-  cause: "turbidity", started_at: todayAt(5, 48), updated_at: todayAt(8),
-  window_start: todayAt(16), window_end: todayAt(19), likely_at: todayAt(17, 30),
-  next_update_at: todayAt(10), heads_up_from: null,
+  // MOCK: window is relative to the phone's clock so "now" always sits before it during a demo.
+  cause: "turbidity", started_at: fromNow(-3.5), updated_at: fromNow(-0.5),
+  window_start: fromNow(8), window_end: fromNow(11), likely_at: fromNow(9.5),
+  next_update_at: fromNow(2), heads_up_from: null,
 };
 
 const HEADS_UP: DisruptionDetail = {
@@ -191,9 +153,9 @@ const HEADS_UP: DisruptionDetail = {
 
 const LOW_RIVER: DisruptionDetail = {
   disruption_id: "7a2d9c10-4e5f-4b6a-9c8d-1e2f3a4b5c02", restored_at: null,
-  cause: "drought", started_at: todayAt(6), updated_at: todayAt(8),
-  window_start: todayAt(17), window_end: todayAt(20), likely_at: todayAt(18),
-  next_update_at: todayAt(10), heads_up_from: null,
+  cause: "drought", started_at: fromNow(-2.5), updated_at: fromNow(-0.5), // MOCK: relative to now, see above
+  window_start: fromNow(9), window_end: fromNow(12), likely_at: fromNow(10),
+  next_update_at: fromNow(2), heads_up_from: null,
 };
 
 // The predictor is system-wide (spec 02, scope: "system"): every intake feeds Kulador and the
@@ -228,7 +190,7 @@ export function mockSnapshot(barangayId: string): BarangaySnapshot | null {
       last_synced_at: new Date().toISOString(),
     },
     detail: resolved ?? system.detail,
-    sources: sourcesFor(barangay.name),
+    sources: sourcesFor(barangayId, (resolved ?? system.detail).cause),
     storage: STORAGE,
     captain: captainFor(barangay.name),
   };

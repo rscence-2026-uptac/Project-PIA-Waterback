@@ -69,13 +69,13 @@ export function ResidentHeader() {
   );
 }
 
-/** "Saved on this phone · works without signal", or the stale stamp when offline. */
-export function ConnectionLine({ stale, savedAt }: { stale: boolean; savedAt: string | null }) {
+/** Shown only when offline: no signal, and the time of the status being shown (elderly-friendly-ui rule 11). */
+export function ConnectionLine({ savedAt }: { savedAt: string }) {
   const { t } = useCopy();
   return (
     <p className="mt-2 flex items-center gap-2 text-[15px] text-ink-soft">
-      <Icon name={stale ? "wifiOff" : "check"} size={16} />
-      {stale && savedAt ? t("app.offline_stale", { time: formatTime(savedAt) }) : t("app.saved_offline")}
+      <Icon name="wifiOff" size={16} />
+      {t("app.offline_stale", { time: formatTime(savedAt) })}
     </p>
   );
 }

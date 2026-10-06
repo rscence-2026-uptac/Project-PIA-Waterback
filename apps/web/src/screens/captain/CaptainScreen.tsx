@@ -78,7 +78,6 @@ function CaptainBody({ barangayName, snapshot, signalLevel, stale, syncedAt }: {
           <strong className="block text-[15px]">
             {stale ? t("app.offline_stale", { time: formatTime(syncedAt) }) : t("captain.up_to_date", { time: formatTime(syncedAt) })}
           </strong>
-          <span className="text-[14px] text-ink-soft">{t("captain.works_offline")}</span>
         </span>
       </div>
 

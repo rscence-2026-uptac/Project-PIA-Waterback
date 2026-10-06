@@ -1,39 +1,85 @@
 // SPEC: 06 — LGU allocation priority: the system recommends, the officer orders (wireframe p.10).
+// SPEC: 09 — one row per (barangay, consumer type), LGU > Residential > Commercial > Industrial by
+// default, with a map of where each barangay sits in the order.
 // Human-in-the-loop: every row keeps its suggested rank, so each override is recorded as
 // overridden_from_suggested_rank on the AllocationDecision.
-import { useLayoutEffect, useRef, useState } from "react";
+import { Suspense, lazy, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { BackendNotConnected, StepOutOfOrder, confirmAllocation } from "../../actions/lgu";
 import { useCopy } from "../../copy/i18n";
 import type { AllocationDecision } from "../../contracts/spec06";
+import { CONSUMER_TYPES, type ConsumerType } from "../../contracts/spec09";
 import { WSP_CONSTANTS } from "../../contracts/wsp";
-import { AFFECTED, OFFICER, OPEN_EVENT, ROUTABLE, type AffectedBarangay } from "../../data/mockLgu";
+import { AFFECTED_GROUPS, BARANGAY_POINTS, OFFICER, OPEN_EVENT, ROUTABLE, type AffectedGroupRow } from "../../data/mockLgu";
 import { formatTime, formatWindow } from "../../lib/time";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { LguLayout } from "./LguLayout";
+import { TypeBadge } from "./consumerTypes";
+import type { MapPin, ServedFirst } from "./PriorityMap";
+
+// Leaflet only loads on /lgu, so resident phones never download it (CLAUDE.md: keep pages light).
+const PriorityMap = lazy(() => import("./PriorityMap").then((m) => ({ default: m.PriorityMap })));
 
 const jmp = WSP_CONSTANTS.JMP_ROUNDTRIP_MIN;
 const fmt = (n: number) => n.toLocaleString("en-US");
-
-/** Household total, or null when spec 03 says coverage is unknown (never a guessed number). */
-function households(row: AffectedBarangay): number | null {
-  if (row.piped_households_affected === null || row.unpiped_households_affected === null) return null;
-  return row.piped_households_affected + row.unpiped_households_affected;
-}
+const rowKey = (row: AffectedGroupRow) => `${row.barangay_id}:${row.consumer_type}`;
 
 type SaveState = "idle" | "saving" | "saved" | "not_connected" | "out_of_order" | "error";
 
+/** "{n} connections" / "{n} facilities", or "coverage unknown" — never a guessed number (spec 03). */
+function useCountLabel() {
+  const { t } = useCopy();
+  return (type: ConsumerType, n: number | null) => {
+    if (n === null) return t("lgu.coverage_unknown");
+    if (type === "lgu") return n === 1 ? t("lgu.facility_one") : t("lgu.facilities_n", { n: fmt(n) });
+    return n === 1 ? t("lgu.connections_one") : t("lgu.connections", { n: fmt(n) });
+  };
+}
+
+/** Each barangay's best place in the current order, the type of that row, and its known non-LGU connections. */
+function mapPins(order: AffectedGroupRow[]): MapPin[] {
+  const pins = new Map<string, MapPin>();
+  order.forEach((row, i) => {
+    const pin = pins.get(row.barangay_id)
+      ?? { barangay_id: row.barangay_id, name: row.name, rank: i + 1, type: row.consumer_type, connections: null };
+    if (row.consumer_type !== "lgu" && row.connections_affected !== null) {
+      pin.connections = (pin.connections ?? 0) + row.connections_affected;
+    }
+    pins.set(row.barangay_id, pin);
+  });
+  return [...pins.values()];
+}
+
+/** What a row needs, in words: facilities, elderly/PWD, no backup. Shared by the list and the map card. */
+function useNeed() {
+  const { t } = useCopy();
+  return (row: AffectedGroupRow) => {
+    const parts = [
+      ...row.facilities.map((f) => t(`facility.${f}`)),
+      row.vulnerable_residents > 0 ? t("lgu.need.vulnerable", { n: row.vulnerable_residents }) : null,
+      row.no_backup_connections > 0 ? t("lgu.need.no_backup", { n: row.no_backup_connections, jmp }) : null,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(" · ");
+    return row.consumer_type === "residential" && row.connections_affected !== null ? t("lgu.need.covered", { jmp }) : null;
+  };
+}
+
 export function AllocationScreen() {
   const { t } = useCopy();
-  const [order, setOrder] = useState<AffectedBarangay[]>(() =>
-    [...AFFECTED].sort((a, b) => a.suggested_rank - b.suggested_rank),
+  const countLabel = useCountLabel();
+  const needOf = useNeed();
+  const [order, setOrder] = useState<AffectedGroupRow[]>(() =>
+    [...AFFECTED_GROUPS].sort((a, b) => a.suggested_rank - b.suggested_rank),
   );
   const [save, setSave] = useState<SaveState>("idle");
-  const listRef = useFlip(order.map((r) => r.barangay_id));
+  const [selected, setSelected] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null); // hovered/focused barangay, linked between map and list
+  const listRef = useFlip(order.map(rowKey));
 
   const decisions: AllocationDecision[] = order.map((row, i) => ({
     disruption_id: OPEN_EVENT.disruption_id,
     barangay_id: row.barangay_id,
+    consumer_type: row.consumer_type,
     priority_rank: i + 1,
     officer_id: OFFICER.id,
     overridden_from_suggested_rank: row.suggested_rank === i + 1 ? null : row.suggested_rank,
@@ -47,6 +93,17 @@ export function AllocationScreen() {
     [next[index], next[target]] = [next[target], next[index]];
     setOrder(next);
     setSave("idle");
+  }
+
+  // Map pin → the barangay's first row in the list.
+  function showInList(barangayId: string) {
+    setSelected(barangayId);
+    const first = order.find((r) => r.barangay_id === barangayId);
+    if (!first) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-flip-key="${rowKey(first)}"]`);
+    el?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    el?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }
 
   async function onConfirm() {
@@ -63,13 +120,22 @@ export function AllocationScreen() {
     }
   }
 
+  const first = order[0];
+  const servedFirst: ServedFirst | null = first
+    ? { name: first.name, type: first.consumer_type, count: countLabel(first.consumer_type, first.connections_affected), detail: needOf(first) }
+    : null;
+
+  const byType = (type: ConsumerType) => AFFECTED_GROUPS.filter((r) => r.consumer_type === type);
+  const sumKnown = (rows: AffectedGroupRow[]) => rows.reduce((sum, r) => sum + (r.connections_affected ?? 0), 0);
+  const lguRows = byType("lgu");
   const totals = {
-    households: AFFECTED.reduce((sum, r) => sum + (households(r) ?? 0), 0),
-    noBackup: AFFECTED.reduce((sum, r) => sum + r.no_backup_households, 0),
-    vulnerable: AFFECTED.reduce((sum, r) => sum + r.vulnerable_households, 0),
-    health: AFFECTED.filter((r) => r.facilities.includes("health_station")).length,
-    school: AFFECTED.filter((r) => r.facilities.includes("school")).length,
-    evac: AFFECTED.filter((r) => r.facilities.includes("evacuation_center")).length,
+    barangays: new Set(AFFECTED_GROUPS.map((r) => r.barangay_id)).size,
+    connections: sumKnown(AFFECTED_GROUPS.filter((r) => r.consumer_type !== "lgu")),
+    noBackup: AFFECTED_GROUPS.reduce((sum, r) => sum + r.no_backup_connections, 0),
+    vulnerable: AFFECTED_GROUPS.reduce((sum, r) => sum + r.vulnerable_residents, 0),
+    health: lguRows.filter((r) => r.facilities.includes("health_station")).length,
+    school: lguRows.filter((r) => r.facilities.includes("school")).length,
+    evac: lguRows.filter((r) => r.facilities.includes("evacuation_center")).length,
   };
 
   return (
@@ -81,8 +147,8 @@ export function AllocationScreen() {
           value={t(`lgu.headline.${OPEN_EVENT.cause}`)}
           note={t("lgu.flagged_by", { who: OPEN_EVENT.flagged_by, time: formatTime(OPEN_EVENT.flagged_at) })} />
         <SummaryCard tone="bg-sky" icon="drop" label={t("lgu.who_affected")}
-          value={t("lgu.households", { n: fmt(totals.households) })}
-          note={t("lgu.affected_sub", { barangays: AFFECTED.length, no_backup: totals.noBackup })} />
+          value={t("lgu.connections", { n: fmt(totals.connections) })}
+          note={t("lgu.affected_sub", { barangays: totals.barangays, no_backup: totals.noBackup })} />
         <SummaryCard tone="bg-sky" icon="clock" label={t("lgu.expected_back")}
           value={t("lgu.window_today", { window: formatWindow(OPEN_EVENT.window_start, OPEN_EVENT.window_end) })}
           note={t("lgu.most_likely", { time: formatTime(OPEN_EVENT.likely_at) })} />
@@ -105,18 +171,30 @@ export function AllocationScreen() {
 
       <div className="mt-8 flex flex-wrap gap-6">
         <section className="min-w-0 flex-[999_1_640px]" aria-labelledby="priority-title">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="priority-title" className="text-[24px]">{t("lgu.priority_title")}</h2>
-            <span className="text-[14px] text-ink-soft">{t("lgu.priority_rule", { jmp })}</span>
-          </div>
-          <ol ref={listRef} className="mt-3 flex flex-col gap-3">
+          <h2 id="priority-title" className="text-[24px]">{t("lgu.priority_title")}</h2>
+          <Suspense fallback={<div className="mt-3 h-[400px] rounded-xl bg-mist" aria-hidden="true" />}>
+            <PriorityMap
+              points={BARANGAY_POINTS}
+              pins={mapPins(order)}
+              servedFirst={servedFirst}
+              active={active}
+              onActive={setActive}
+              onSelect={showInList}
+            />
+          </Suspense>
+          <ol ref={listRef} className="mt-6 flex flex-col gap-3">
             {order.map((row, i) => (
               <PriorityRow
-                key={row.barangay_id}
+                key={rowKey(row)}
                 row={row}
                 rank={i + 1}
                 first={i === 0}
                 last={i === order.length - 1}
+                highlighted={row.barangay_id === selected}
+                linked={row.barangay_id === active}
+                need={needOf(row)}
+                countLabel={countLabel(row.consumer_type, row.connections_affected)}
+                onActive={setActive}
                 onUp={() => move(i, -1)}
                 onDown={() => move(i, 1)}
               />
@@ -129,8 +207,15 @@ export function AllocationScreen() {
           <section className="rounded-xl border-[1.5px] border-haze p-6">
             <h2 className="text-[22px]">{t("lgu.affected_title")}</h2>
             <dl className="mt-3">
-              <StatRow label={t("lgu.stat_barangays")} value={AFFECTED.length} />
-              <StatRow label={t("lgu.stat_households")} value={fmt(totals.households)} />
+              <StatRow label={t("lgu.stat_barangays")} value={totals.barangays} />
+              {CONSUMER_TYPES.map((type) => {
+                const rows = byType(type);
+                const unknown = rows.some((r) => r.connections_affected === null);
+                return (
+                  <StatRow key={type} label={<TypeBadge type={type} />}
+                    value={`${countLabel(type, sumKnown(rows))}${unknown ? ` + ${t("lgu.coverage_unknown")}` : ""}`} />
+                );
+              })}
               <StatRow label={t("lgu.stat_off_network", { jmp })} value={totals.noBackup} />
               <StatRow label={t("lgu.stat_vulnerable")} value={totals.vulnerable} />
               <StatRow label={t("lgu.stat_facilities")}
@@ -190,7 +275,7 @@ function SummaryCard({ tone, icon, label, value, note }: {
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string | number }) {
+function StatRow({ label, value }: { label: ReactNode; value: string | number }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-haze py-3 last:border-b-0">
       <dt>{label}</dt>
@@ -199,31 +284,37 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function PriorityRow({ row, rank, first, last, onUp, onDown }: {
-  row: AffectedBarangay;
+function PriorityRow({ row, rank, first, last, highlighted, linked, need, countLabel, onActive, onUp, onDown }: {
+  row: AffectedGroupRow;
   rank: number;
   first: boolean;
   last: boolean;
+  highlighted: boolean;
+  linked: boolean; // its barangay is hovered on the map or the list
+  need: string | null;
+  countLabel: string;
+  onActive: (barangayId: string | null) => void;
   onUp: () => void;
   onDown: () => void;
 }) {
   const { t } = useCopy();
   const moved = row.suggested_rank !== rank;
+  const label = `${row.name} · ${t(`type.${row.consumer_type}`)}`;
 
-  // Spec 03: estimates are labelled; a barangay with no coverage data never shows a guessed number.
-  const needParts = [
-    ...row.facilities.map((f) => t(`facility.${f}`)),
-    row.vulnerable_households > 0 ? t("lgu.need.vulnerable", { n: row.vulnerable_households }) : null,
-    row.no_backup_households > 0 ? t("lgu.need.no_backup", { n: row.no_backup_households, jmp }) : null,
-  ].filter(Boolean);
-  const need = needParts.length > 0 ? needParts.join(" · ") : t("lgu.need.covered", { jmp });
+  const levelI = row.service_level === "level_i" && row.consumer_type === "residential";
 
   return (
-    <li data-flip-key={row.barangay_id} className="flex items-center gap-4 rounded-xl border-[1.5px] border-haze bg-foam p-4">
+    <li
+      data-flip-key={rowKey(row)}
+      onMouseEnter={() => onActive(row.barangay_id)}
+      onMouseLeave={() => onActive(null)}
+      className={`flex items-center gap-4 rounded-xl border-[1.5px] p-4 transition-colors duration-150 ${linked ? "bg-mist" : "bg-foam"} ${highlighted ? "border-ink outline-2 outline-ink" : "border-haze"}`}
+    >
       <span className="numeral flex size-12 shrink-0 items-center justify-center rounded-md bg-sky text-[24px]">{rank}</span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2">
           <span className="font-display text-[20px]">{row.name}</span>
+          <TypeBadge type={row.consumer_type} />
           {row.reported_not_restored && (
             <span className="inline-flex items-center gap-1 rounded-full bg-coral px-2.5 py-1 text-[13px] font-bold text-ink">
               <Icon name="dropOff" size={14} />
@@ -234,25 +325,23 @@ function PriorityRow({ row, rank, first, last, onUp, onDown }: {
             <span className="rounded-full bg-mist px-2.5 py-1 text-[13px] font-bold">{t("lgu.moved_from", { from: row.suggested_rank })}</span>
           )}
         </p>
-        <p className="mt-0.5 text-ink-soft">
-          {need}
-          {row.coverage_confidence === "estimate" && row.no_backup_households > 0 && (
-            <span className="ml-1.5 text-[13px] font-bold">({t("lgu.estimate")})</span>
-          )}
-          {row.service_level === "level_i" && (
-            <span className="ml-1.5 text-[13px] font-bold">· {t("lgu.level_i")}</span>
-          )}
-        </p>
+        {(need || levelI) && (
+          <p className="mt-0.5 text-ink-soft">
+            {need}
+            {row.coverage_confidence === "estimate" && row.no_backup_connections > 0 && (
+              <span className="ml-1.5 text-[13px] font-bold">({t("lgu.estimate")})</span>
+            )}
+            {levelI && <span className="ml-1.5 text-[13px] font-bold">· {t("lgu.level_i")}</span>}
+          </p>
+        )}
       </div>
-      <span className="numeral shrink-0 text-[24px]">
-        {households(row) === null ? t("lgu.coverage_unknown") : t("lgu.households", { n: households(row)!.toLocaleString("en-US") })}
-      </span>
+      <span className="numeral shrink-0 text-[24px]">{countLabel}</span>
       <div className="flex shrink-0 gap-2">
-        <button type="button" onClick={onUp} disabled={first} aria-label={t("lgu.move_up", { name: row.name })}
+        <button type="button" onClick={onUp} disabled={first} aria-label={t("lgu.move_up", { name: label })}
           className="press flex size-11 items-center justify-center rounded-sm bg-mist disabled:opacity-40">
           <Icon name="chevronUp" />
         </button>
-        <button type="button" onClick={onDown} disabled={last} aria-label={t("lgu.move_down", { name: row.name })}
+        <button type="button" onClick={onDown} disabled={last} aria-label={t("lgu.move_down", { name: label })}
           className="press flex size-11 items-center justify-center rounded-sm bg-mist disabled:opacity-40">
           <Icon name="chevronDown" />
         </button>

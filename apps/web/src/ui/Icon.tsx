@@ -1,5 +1,5 @@
 // 20px stroke icons used across the wireframes. Always paired with a visible word.
-const PATHS = {
+export const PATHS = {
   drop: "M12 3c-3.5 4.4-6 7.7-6 10.6a6 6 0 0 0 12 0C18 10.7 15.5 7.4 12 3z",
   dropOff: "M12 3c-1.3 1.6-2.4 3-3.3 4.3M6.4 11.4A8 8 0 0 0 6 13.6a6 6 0 0 0 10.6 3.9M17.8 14.4c.1-.3.2-.5.2-.8 0-2.9-2.5-6.2-6-10.6M4 4l16 16",
   pin: "M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z M12 12.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4z",
@@ -22,6 +22,13 @@ const PATHS = {
   tap: "M5 7h11a3 3 0 0 1 3 3v1 M9 7V4h4v3 M19 13v3 M19 19v.1",
   heart: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z",
   circle:"M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
+  plus: "M12 5v14 M5 12h14",
+  minus: "M5 12h14",
+  fit: "M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5",
+  building: "M12 3v3 M12 3h3 M4 9l8-3 8 3H4z M6 9v9 M10 9v9 M14 9v9 M18 9v9 M4 21h16 M5 18h14",
+  home: "M4 11l8-7 8 7 M6 9.5V20h12V9.5 M10 20v-5.5h4V20",
+  store: "M4 9l1.5-5h13L20 9 M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9 M5 12v8h14v-8 M10 20v-4h4v4",
+  factory: "M3 20V10l5 3V10l5 3V10l5 3V4h3v16H3z M7 17h2 M12 17h2",
 } as const;
 
 export type IconName = keyof typeof PATHS;
