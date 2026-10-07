@@ -1,0 +1,62 @@
+-- Simulated LGU water-truck drop point locations (lat/lng) for the 57 'trucking' sources rows.
+-- SIMULATED sample points, generated 2026-10-08: ~300 m from the barangay centroid in a direction fixed per barangay,
+-- snapped to the nearest walkable road with the OSRM foot router the app uses. Not a real LGU plan: the rows stay
+-- labelled "(simulated)". Idempotent: only touches trucking rows whose lat is still null.
+-- Same values as supabase/seed/truck_drop_points.json (feeds gen_sources.py) and apps/web/src/data/seedSources.ts.
+update sources set lat = 11.780809, lng = 124.883275 where barangay_id = 'poblacion-01' and type = 'trucking' and lat is null;
+update sources set lat = 11.779607, lng = 124.883959 where barangay_id = 'poblacion-02' and type = 'trucking' and lat is null;
+update sources set lat = 11.777669, lng = 124.882083 where barangay_id = 'poblacion-03' and type = 'trucking' and lat is null;
+update sources set lat = 11.776479, lng = 124.883187 where barangay_id = 'poblacion-04' and type = 'trucking' and lat is null;
+update sources set lat = 11.775608, lng = 124.883339 where barangay_id = 'poblacion-05' and type = 'trucking' and lat is null;
+update sources set lat = 11.774843, lng = 124.883826 where barangay_id = 'poblacion-06' and type = 'trucking' and lat is null;
+update sources set lat = 11.774752, lng = 124.885672 where barangay_id = 'poblacion-07' and type = 'trucking' and lat is null;
+update sources set lat = 11.771393, lng = 124.885061 where barangay_id = 'poblacion-08' and type = 'trucking' and lat is null;
+update sources set lat = 11.764863, lng = 124.884307 where barangay_id = 'poblacion-09' and type = 'trucking' and lat is null;
+update sources set lat = 11.778903, lng = 124.88701 where barangay_id = 'poblacion-10' and type = 'trucking' and lat is null;
+update sources set lat = 11.777551, lng = 124.88722 where barangay_id = 'poblacion-11' and type = 'trucking' and lat is null;
+update sources set lat = 11.776046, lng = 124.887584 where barangay_id = 'poblacion-12' and type = 'trucking' and lat is null;
+update sources set lat = 11.778138, lng = 124.8897 where barangay_id = 'poblacion-13' and type = 'trucking' and lat is null;
+update sources set lat = 11.789117, lng = 124.898514 where barangay_id = 'san-andres' and type = 'trucking' and lat is null;
+update sources set lat = 11.784498, lng = 124.888726 where barangay_id = 'canlapwas' and type = 'trucking' and lat is null;
+update sources set lat = 11.777753, lng = 124.881299 where barangay_id = 'san-pablo' and type = 'trucking' and lat is null;
+update sources set lat = 11.781675, lng = 124.886259 where barangay_id = 'munoz' and type = 'trucking' and lat is null;
+update sources set lat = 11.78354, lng = 124.876158 where barangay_id = 'mercedes' and type = 'trucking' and lat is null;
+update sources set lat = 11.795609, lng = 124.865916 where barangay_id = 'maulong' and type = 'trucking' and lat is null;
+update sources set lat = 11.770232, lng = 124.885897 where barangay_id = 'guindapunan' and type = 'trucking' and lat is null;
+update sources set lat = 11.755508, lng = 124.885354 where barangay_id = 'guinsorongan' and type = 'trucking' and lat is null;
+update sources set lat = 11.753897, lng = 124.885785 where barangay_id = 'bunu-anan' and type = 'trucking' and lat is null;
+update sources set lat = 11.747784, lng = 124.872234 where barangay_id = 'darahuway-guti' and type = 'trucking' and lat is null;
+update sources set lat = 11.742929, lng = 124.877321 where barangay_id = 'darahuway-dako' and type = 'trucking' and lat is null;
+update sources set lat = 11.802959, lng = 124.865204 where barangay_id = 'payao' and type = 'trucking' and lat is null;
+update sources set lat = 11.762065, lng = 124.90898 where barangay_id = 'lagundi' and type = 'trucking' and lat is null;
+update sources set lat = 11.86822, lng = 124.899579 where barangay_id = 'albalate' and type = 'trucking' and lat is null;
+update sources set lat = 11.805295, lng = 124.702509 where barangay_id = 'bagongon' and type = 'trucking' and lat is null;
+update sources set lat = 11.87702, lng = 124.878295 where barangay_id = 'bangon' and type = 'trucking' and lat is null;
+update sources set lat = 11.689254, lng = 124.9019 where barangay_id = 'basiao' and type = 'trucking' and lat is null;
+update sources set lat = 11.816985, lng = 124.738808 where barangay_id = 'buluan' and type = 'trucking' and lat is null;
+update sources set lat = 11.811624, lng = 124.827747 where barangay_id = 'cabugawan' and type = 'trucking' and lat is null;
+update sources set lat = 11.853121, lng = 124.877986 where barangay_id = 'cagudalo' and type = 'trucking' and lat is null;
+update sources set lat = 11.905254, lng = 124.923874 where barangay_id = 'cagusipan' and type = 'trucking' and lat is null;
+update sources set lat = 11.882084, lng = 124.911208 where barangay_id = 'cagutian' and type = 'trucking' and lat is null;
+update sources set lat = 11.817507, lng = 124.684402 where barangay_id = 'cagutsan' and type = 'trucking' and lat is null;
+update sources set lat = 11.826091, lng = 124.726077 where barangay_id = 'canhawan-gote' and type = 'trucking' and lat is null;
+update sources set lat = 11.798997, lng = 124.917606 where barangay_id = 'cawayan' and type = 'trucking' and lat is null;
+update sources set lat = 11.823499, lng = 124.693476 where barangay_id = 'cinco' and type = 'trucking' and lat is null;
+update sources set lat = 11.795441, lng = 124.833629 where barangay_id = 'estaka' and type = 'trucking' and lat is null;
+update sources set lat = 11.755719, lng = 124.901967 where barangay_id = 'ibol' and type = 'trucking' and lat is null;
+update sources set lat = 11.827003, lng = 124.838122 where barangay_id = 'iguid' and type = 'trucking' and lat is null;
+update sources set lat = 11.834206, lng = 124.887315 where barangay_id = 'libas' and type = 'trucking' and lat is null;
+update sources set lat = 11.83644, lng = 124.916766 where barangay_id = 'lobo' and type = 'trucking' and lat is null;
+update sources set lat = 11.811246, lng = 124.895559 where barangay_id = 'manguehay' and type = 'trucking' and lat is null;
+update sources set lat = 11.800812, lng = 124.697393 where barangay_id = 'mombon' and type = 'trucking' and lat is null;
+update sources set lat = 11.844303, lng = 124.828852 where barangay_id = 'new-mahayag' and type = 'trucking' and lat is null;
+update sources set lat = 11.846754, lng = 124.824249 where barangay_id = 'old-mahayag' and type = 'trucking' and lat is null;
+update sources set lat = 11.868426, lng = 124.863577 where barangay_id = 'palanyogon' and type = 'trucking' and lat is null;
+update sources set lat = 11.743171, lng = 124.918042 where barangay_id = 'pangdan' and type = 'trucking' and lat is null;
+update sources set lat = 11.812931, lng = 124.858679 where barangay_id = 'pupua' and type = 'trucking' and lat is null;
+update sources set lat = 11.822865, lng = 124.691852 where barangay_id = 'rama' and type = 'trucking' and lat is null;
+update sources set lat = 11.806531, lng = 124.836676 where barangay_id = 'san-roque' and type = 'trucking' and lat is null;
+update sources set lat = 11.864332, lng = 124.828732 where barangay_id = 'san-vicente' and type = 'trucking' and lat is null;
+update sources set lat = 11.819652, lng = 124.839844 where barangay_id = 'silanga' and type = 'trucking' and lat is null;
+update sources set lat = 11.763131, lng = 124.892195 where barangay_id = 'socorro' and type = 'trucking' and lat is null;
+update sources set lat = 11.855905, lng = 124.926092 where barangay_id = 'totoringon' and type = 'trucking' and lat is null;

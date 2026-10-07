@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PIA Waterback demo driver. Calls ONLY Edge Functions with the anon key (like the app), plus service-role reset.
-// Usage: node scripts/demo/demo.mjs <status|reset|run|replay|listen|verify-realtime|sms|reply> [flags]  (see README.md)
+// PIA Waterback demo driver. Calls ONLY Edge Functions with the anon key (like the app), plus service-role reset / seed-now.
+// Usage: node scripts/demo/demo.mjs <status|reset|run|replay|seed-now|unseed-now|listen|verify-realtime|sms|reply> [flags]  (see README.md)
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -8,6 +8,7 @@ import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as R from "./replay_lib.mjs";
+import * as N from "./seed_now_lib.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_REF = "vxlaitnrhlucsmqkjofp";
@@ -586,11 +587,87 @@ async function cmdReplay() {
   if (!dry) out(`\nReset when done:  node scripts/demo/demo.mjs reset --yes${flags["from-cli"] ? " --from-cli" : ""}`);
 }
 
+// ---------- seed-now: the sample outage at the CURRENT hour (live app shows it) ----------
+// Writes rainfall_hourly, rain_forecast_hourly (source 'demo-now') and simulated readings (client_local_id 'demo-now:...').
+// Never touches the July seed data or non-demo rows. SMS mode is never changed.
+async function demoNowCounts(sb) {
+  const c = async (q) => { const { count, error } = await q; if (error) throw new Error(error.message); return count ?? 0; };
+  const head = { count: "exact", head: true };
+  return {
+    readings: await c(sb.from("readings").select("*", head).like("client_local_id", `${N.DEMO_NOW_PREFIX}%`)),
+    rainfall_hourly: await c(sb.from("rainfall_hourly").select("*", head).eq("source", N.DEMO_NOW_SOURCE)),
+    rain_forecast_hourly: await c(sb.from("rain_forecast_hourly").select("*", head).eq("source", N.DEMO_NOW_SOURCE)),
+  };
+}
+async function deleteDemoNow(sb) {
+  const del = async (table, apply) => {
+    const { count, error } = await apply(sb.from(table).delete({ count: "exact" }));
+    if (error) throw new Error(`delete ${table}: ${error.message}`);
+    out(`  deleted ${String(count ?? 0).padStart(5)} demo-now rows from ${table}`);
+  };
+  await del("readings", (q) => q.like("client_local_id", `${N.DEMO_NOW_PREFIX}%`).eq("is_simulated", true));
+  await del("rainfall_hourly", (q) => q.eq("source", N.DEMO_NOW_SOURCE));
+  await del("rain_forecast_hourly", (q) => q.eq("source", N.DEMO_NOW_SOURCE));
+}
+async function insertBatches(sb, table, rows) {
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await sb.from(table).insert(rows.slice(i, i + 500));
+    if (error) throw new Error(`insert ${table}: ${error.message}`);
+  }
+  out(`  inserted ${String(rows.length).padStart(5)} into ${table}`);
+}
+async function cmdSeedNow() {
+  let hold; try { hold = N.parseHold(typeof flags.hold === "string" ? flags.hold : "12h"); } catch (e) { die(e.message); }
+  const dry = !!flags.dry;
+  if (!dry && !flags.yes) die("seed-now writes ~1,100 demo rows (readings, rainfall_hourly, rain_forecast_hourly) at the current hour. Re-run with --yes (or --dry to preview).");
+  const sc = N.buildScenario(new Date(), { holdHours: hold });
+  const hmax = new Date(sc.H.getTime() + hold * 3_600_000);
+  out(`seed-now: sample outage anchored at ${R.manilaIso(sc.H)} (Manila), held fresh until ${R.manilaIso(hmax)}${dry ? "  [DRY: nothing is written]" : ""}`);
+  out(`  readings ${sc.readings.length}, rainfall_hourly ${sc.rainfall.length}, rain_forecast_hourly ${sc.forecast.length}`);
+  const f = N.expectedFeatures(sc, sc.H);
+  out("  expected model inputs at the anchor:");
+  info(`turbidity ${f.turbidity_ntu} NTU, rain 24 h ${f.rain_24h_mm} mm, rain 72 h ${f.rain_72h_mm} mm, forecast 48 h ${f.forecast_rain_48h_mm} mm`);
+  info(`reservoir ${f.reservoir_pct}%, rain 14 d ${f.rain_14d_mm} mm, rain 30 d ${f.rain_30d_mm} mm, days since rain>5 mm: ${f.days_since_rain_over_5mm}`);
+  info("expected prediction: turbidity level 4, drought level 0, signal 4 (model, no fallback)");
+  if (dry) return;
+  config({ needService: true });
+  const sb = serviceClient();
+  out("\nClearing previous demo-now rows");
+  await deleteDemoNow(sb);
+  // refuse to collide with real rows (the PK is ts): only possible if the anchor falls inside already-loaded history
+  for (const [table, rows] of [["rainfall_hourly", sc.rainfall], ["rain_forecast_hourly", sc.forecast]]) {
+    const { count, error } = await sb.from(table).select("*", { count: "exact", head: true }).gte("ts", rows[0].ts).lte("ts", rows[rows.length - 1].ts);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    if (count) die(`${table} already has ${count} non-demo rows inside ${rows[0].ts} .. ${rows[rows.length - 1].ts}; refusing to overwrite real data.`);
+  }
+  out("Writing");
+  await insertBatches(sb, "rainfall_hourly", sc.rainfall);
+  await insertBatches(sb, "rain_forecast_hourly", sc.forecast);
+  await insertBatches(sb, "readings", sc.readings);
+  ok(`seeded. Fresh until ${R.manilaIso(hmax)} (staleness limits: readings 6 h, rain 3 h); re-run seed-now within ${hold} h of a demo.`);
+  if (flags.monitor) {
+    const { data, ms } = await fn("disruption-monitor", { body: { as_of: sc.H.toISOString() } });
+    ok(`disruption-monitor as_of ${R.manilaIso(sc.H)}: action=${data.action}  (${fmtMs(ms)})`);
+    if (data.disruption) info(`disruption ${data.disruption.id} status=${data.disruption.status} signal=${data.disruption.signal_level} cause=${data.disruption.cause}`);
+    if (data.heads_up) info(`heads_up: barangays=${data.heads_up.barangays?.length ?? 0} sms_planned=${data.heads_up.sms_planned ?? 0} sms_skipped_demo=${data.heads_up.sms_skipped_demo ?? 0} (SMS stays dry-run)`);
+  }
+  out(`\nRemove when done:  node scripts/demo/demo.mjs unseed-now --yes${flags["from-cli"] ? " --from-cli" : ""}` + (flags.monitor ? "  (and reset --yes for the disruption the monitor opened)" : ""));
+}
+async function cmdUnseedNow() {
+  if (!flags.yes) die("unseed-now deletes the demo-now rows (readings tagged 'demo-now:', rainfall_hourly / rain_forecast_hourly with source 'demo-now'). Re-run with --yes.");
+  config({ needService: true });
+  out("unseed-now");
+  await deleteDemoNow(serviceClient());
+  const c = await demoNowCounts(serviceClient());
+  out(Object.values(c).every((n) => n === 0) ? "✓ no demo-now rows left (July seed data untouched)" : `✗ still present: ${JSON.stringify(c)}`);
+  if (!Object.values(c).every((n) => n === 0)) process.exit(1);
+}
+
 // ---------- main ----------
-const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, replay: cmdReplay, listen: cmdListen, "verify-realtime": cmdVerify, sms: cmdSms, reply: cmdReply };
+const commands = { status: cmdStatus, reset: cmdReset, run: cmdRun, replay: cmdReplay, "seed-now": cmdSeedNow, "unseed-now": cmdUnseedNow, listen: cmdListen, "verify-realtime": cmdVerify, sms: cmdSms, reply: cmdReply };
 if (!commands[command]) {
   out("Usage: node scripts/demo/demo.mjs <command> [flags]\n");
-  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  replay [--scenario late-july|crisis] [--from ISO] [--to ISO] [--every 3h] [--step] [--speed ms] [--dry]\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n  sms [--seconds S] [--history N]        simulated handset: tail sms_outbox\n  reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
+  out("  status\n  reset --yes\n  run [--as-of ISO] [--step] [--top N] [--with-reopen]\n  replay [--scenario late-july|crisis] [--from ISO] [--to ISO] [--every 3h] [--step] [--speed ms] [--dry]\n  seed-now [--hold 12h] [--dry] [--yes] [--monitor]   write the sample outage at the current hour\n  unseed-now --yes                                     remove it\n  listen [--seconds S]\n  verify-realtime [--reset] [--keep] [--with-reopen]\n  sms [--seconds S] [--history N]        simulated handset: tail sms_outbox\n  reply <barangay_id|+63900000000X> <KEYWORD>   e.g. reply lagundi THANKS\n\nGlobal: --from-cli (fetch keys via supabase CLI)");
   process.exit(command ? 2 : 0);
 }
 try { await commands[command](); process.exit(process.exitCode ?? 0); }

@@ -21,9 +21,11 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
   }
 }
 
-const fetchData: FetchData = async (from, to) => {
+const fetchData: FetchData = async (from, to, opts) => {
   // `from` = as_of - 90 d (rain history). Readings are only needed for the last ~2 days (6 h turbidity staleness, 24 h fallback lookback).
-  const readingsFrom = new Date(Math.max(from.getTime(), to.getTime() - 2 * 24 * 3_600_000));
+  // History mode passes opts.readingsFrom / opts.forecastFrom to cover every hourly point; single mode keeps these defaults.
+  const readingsFrom = opts?.readingsFrom ?? new Date(Math.max(from.getTime(), to.getTime() - 2 * 24 * 3_600_000));
+  const forecastFrom = opts?.forecastFrom ?? to;
   const forecastTo = new Date(to.getTime() + 48 * 3_600_000);
   const [readings, rain, forecast] = await Promise.all([
     fetchAll((a, b) =>
@@ -37,7 +39,7 @@ const fetchData: FetchData = async (from, to) => {
         .order("ts").range(a, b)),
     fetchAll((a, b) =>
       supabase.from("rain_forecast_hourly").select("ts,precipitation_mm")
-        .gt("ts", to.toISOString()).lte("ts", forecastTo.toISOString())
+        .gt("ts", forecastFrom.toISOString()).lte("ts", forecastTo.toISOString())
         .order("ts").range(a, b)),
   ]);
   // PostgREST returns numeric columns as numbers (or strings for huge values); normalise.

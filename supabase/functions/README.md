@@ -8,6 +8,16 @@ Functions: `affected-areas` (spec 03), `disruption-monitor` (disruption lifecycl
 
 Base URL: `https://<project-ref>.supabase.co/functions/v1/<name>`.
 
+### `GET disruption-predictor?as_of=ISO[&history_hours=N]`
+Single mode (no `history_hours`) returns the usual PredictorOutput. With `history_hours=N` (integer 1-72, else 400) it returns N+1 hourly points (as_of - N h ... as_of, oldest first) from ONE data fetch, for a risk trend:
+```json
+{ "as_of": "2026-07-10T12:00:00.000Z", "history_hours": 48,
+  "hours": [ { "as_of": "...", "signal_level": 2, "turbidity_level": 2, "drought_level": 1, "fallback_used": false,
+               "forecast_source": "seeded", "score_turbidity": 63, "score_drought": 41 } ] }
+```
+- Past points use only the seeded forecast table (`missing` -> turbidity WSP fallback); the last point (as_of) uses the same forecast chain as single mode (seeded, else live Open-Meteo if allowed, else missing), with at most one live call.
+- `score_X = round(50 + 10 x (baseline + sum of driver contributions))` (the web scorecard scale); `null` when that model fell back to a WSP rule. A WSP hard rule can force a level above what the score implies; both are reported as computed.
+
 ### `GET affected-areas?as_of=ISO[&disruption_id=uuid][&min_signal=0-4]`
 Runs the spec 02 predictor at `as_of` (ISO 8601 with offset; default now) and returns a bare JSON array: one row per barangay (57).
 - Served (26): inherit the system signal. Unserved (31): same signal, `resident_state: "not_on_network"`, `heads_up: true` when signal >= 2, counts NULL, `coverage_confidence: "unknown"`.

@@ -26,6 +26,8 @@ node scripts/demo/demo.mjs <command> [flags]
 | `status` | Open disruption, row counts (disruptions, event_log, allocations, continuity_chains, non-simulated readings) and whether the DB is at **clean baseline** (all zero). |
 | `reset --yes` | Service role. Deletes ALL rows in `event_log`, `allocations`, `continuity_chains`, `disruptions`, and `readings` where `is_simulated = false`. Prints counts deleted. |
 | `run [--as-of ISO] [--step] [--top N] [--with-reopen]` | The 11-step stage scenario (default as_of `2026-07-02T06:00:00+08:00`, top 3). `--step` waits for Enter before each step. `--with-reopen` first sends one `restored=false` (disruption goes back to `deployed`) before the `restored=true` confirmations. Prints per-step timings; exit code 1 on any failed step. |
+| `seed-now [--hold 12h] [--dry] [--yes] [--monitor]` | Writes the web app's sample outage into the live DB anchored at the current hour (see below). |
+| `unseed-now --yes` | Removes everything `seed-now` wrote. |
 | `listen [--seconds S]` | Realtime with the anon key: `postgres_changes` INSERT on `event_log` and UPDATE on `disruptions`. Prints type, `barangay_id` (or `ALL (system-wide)`), `occurred_at`, and receive latency. This is the data path of Dev B's `/lgu/live`. |
 | `verify-realtime [--reset] [--keep] [--with-reopen]` | Refuses unless the baseline is clean (or `--reset`). Starts a listener, runs the full scenario, waits up to 10 s for stragglers, asserts every `event_log` row of the disruption was received, in lifecycle order, reports median/max latency, then resets (unless `--keep`). Exit 0 only if everything passed. |
 
@@ -69,7 +71,7 @@ Open Dev B's `/lgu/live` in the browser (or `listen` in a second terminal) befor
 
 ## Safety
 
-- `reset` only touches the runtime scopes above (plus `sms_outbox`). It never touches `barangays`, `sources`, `intakes`, `wsp_constants`, `rainfall_*`, `rain_forecast_hourly`, `residents`, or simulated readings. It requires `--yes` and the service-role key.
+- `reset` only touches the runtime scopes above (plus `sms_outbox`). It never touches `barangays`, `sources`, `intakes`, `wsp_constants`, `rainfall_*`, `rain_forecast_hourly`, `residents`, or simulated readings (so it also leaves `seed-now` data in place; remove that with `unseed-now`). It requires `--yes` and the service-role key.
 - SMS stays dry-run: `notify-residents` only sends when the function secret `SMS_LIVE` is exactly `true`. `run` aborts if the response says the mode is not `dry_run`. In dry-run, SMS recipients come from the `residents` table; with no seeded residents `planned` is 0.
 - Do not run against a project with real data in the runtime tables: `reset` deletes all of it.
 
@@ -115,3 +117,28 @@ What to say: the line turns from `▮▯▯▯ 1` to `▮▮▮▯ 3` while the 
 4. After the monitor/heads-up backend is deployed: one full non-dry `replay --scenario late-july --speed 300`, confirm the `⚠ HEADS-UP SENT` block, SMS in terminal 1 with `(simulated)`, and no LIVE messages. Then `reset --yes`.
 5. Rehearse `--step` once with the real narration; reset again; `status` clean before going on stage.
 6. Never set `SMS_LIVE=true` for any rehearsal.
+
+## seed-now / unseed-now: the sample outage at the current hour
+
+The web app reads the live backend at the real current time, but the seeded scenario data is from July 2026, so today the predictor has no readings and falls back. `seed-now` writes the app's sample outage (apps/web `OPERATOR` / `OPERATOR_PREDICTION`) anchored at the current hour H, so every screen shows it live.
+
+```
+node scripts/demo/demo.mjs seed-now --dry                       # preview only, offline, writes nothing
+node scripts/demo/demo.mjs seed-now --yes --from-cli [--hold 12h] [--monitor]
+node scripts/demo/demo.mjs unseed-now --yes --from-cli
+```
+Service-role key needed for the non-dry forms and `unseed-now` (same key loading as `reset`; never printed).
+
+What it writes (the only three tables the predictor reads), about 1,100 rows:
+- `readings`: hourly for H-48 h to H+hold, all four intakes, `source = 'sensor'`, `is_simulated = true`, `client_local_id = 'demo-now:<intake>:<epoch s>'`. Kulador ends at 620 NTU, `degraded`, treated 3.8, clarifier 31 L/s, reservoir 58 % (80 % falling ~4 points/h); Masacpasac 14 NTU; Caramayon I 540 NTU `shutdown` (from its first reading at 500 NTU or more); Caramayon II 38 NTU.
+- `rainfall_hourly`: H-30 d to H+hold, `source = 'demo-now'`. 43 mm in the last 24 h (the sample series), 12 mm at about H-50 h, showers earlier so the totals are 55 mm / 72 h, 160 mm / 14 d, 310 mm / 30 d.
+- `rain_forecast_hourly`: H-48 h to H+hold+48 h, `source = 'demo-now'`. 14 mm over the 48 h after H; past hours are 0.1 x the actual rain (a forecast that under-called the storm), so a replayed trend rises instead of sitting at the top.
+
+Expected predictor result at H: turbidity level 4, drought level 0, signal 4, `fallback_used = false`, forecast source `seeded`. Verified offline against the real `predict()` by `supabase/tests/functions/seed_now.test.ts`.
+
+Notes:
+- **12 h hold.** Rain and readings continue (rain 0, values held steady) to H+hold so the data stays inside the predictor's staleness limits (readings 6 h, rain 3 h). The scenario is anchored at the hour you run it, so re-run `seed-now --yes` within that window before a demo (it deletes its previous rows first, so re-running is safe).
+- `--monitor` additionally POSTs `disruption-monitor {as_of: H}` (anon key, like `replay`) so the outage disruption and heads-up open; it prints the action. SMS stays dry-run. That disruption is not tagged demo-now: clear it with `reset --yes`.
+- `days_since_rain_over_5mm` is 0 only when H is at 05:00 Manila or later (the storm hours must fall on today's date). Earlier it is 1; the levels do not change.
+- It refuses to write if non-demo rows already exist in the target time range (it never overwrites real data).
+- Cleanup: `unseed-now --yes` deletes `rainfall_hourly` / `rain_forecast_hourly` rows with `source = 'demo-now'` and readings with a `demo-now:` `client_local_id`. July seed data and non-simulated readings are never touched.

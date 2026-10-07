@@ -17,11 +17,10 @@ import { enqueue, pendingItems } from "../../offline/queue";
 import { Button } from "../../ui/Button";
 import { Pill, SampleChip } from "../../ui/Chip";
 import { Icon } from "../../ui/Icon";
-import { StaffTab, StaffTopBar } from "../../ui/StaffTopBar";
 import { RainChart, TurbidityChart } from "./Charts";
-import { hasDrivers } from "../../lib/drivers";
-import { useLivePrediction } from "../../api/usePrediction";
-import { WhyPanel } from "./WhyPanel";
+import { OperatorTopBar } from "./OperatorTopBar";
+import { RiskSummary } from "./PlantRisk";
+import { useOperatorPrediction } from "./plantRiskState";
 
 const { TURBIDITY_SHUTOFF_NTU, TURBIDITY_LIMIT_NTU, CLARIFIER_CAPACITY_LPS } = WSP_CONSTANTS;
 
@@ -71,30 +70,13 @@ export function OperatorScreen() {
   const [intake, setIntake] = useState<IntakeId>("kulador");
   const latest = useLatestReading(intake);
   const { asOf: now } = useAsOf();
-  const prediction = useLivePrediction();
+  const { prediction, sample } = useOperatorPrediction();
   const openEvent = useOpenEvent().data;
   const live = isLive();
 
   return (
     <div className="min-h-dvh bg-foam text-[15px]">
-      <StaffTopBar
-        org={t("operator.org")}
-        tabs={
-          <>
-            <StaffTab current>{t("operator.tab_monitor")}</StaffTab>
-            <StaffTab>{t("operator.tab_log")}</StaffTab>
-            <StaffTab>{t("operator.tab_events")}</StaffTab>
-            <StaffTab>{t("operator.tab_thresholds")}</StaffTab>
-          </>
-        }
-        right={
-          <span className="inline-flex flex-wrap items-center gap-2">
-            {/* No shift roster in the backend: stays a sample, labelled in live mode. */}
-            {t("operator.shift", { name: OPERATOR.shift_name, hours: OPERATOR.shift_hours })}
-            <SampleChip />
-          </span>
-        }
-      />
+      <OperatorTopBar />
 
       <main className="mx-auto max-w-[1360px] px-8 pb-16 pt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -150,12 +132,10 @@ export function OperatorScreen() {
             <ReadingForm key={`${intake}-${latest.logged_at}`} intake={intake} latest={latest} />
           </div>
           <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-6">
-            {/* Live predictor with drivers: the real "why". Otherwise (sample mode, older deploy) the sample cards. */}
-            {hasDrivers(prediction) ? (
-              <WhyPanel prediction={prediction} />
-            ) : (
-              <DetectorPanel />
-            )}
+            {/* Turbidity and drought summary (live with drivers, or the sample when not live); details on /operator/risk.
+                Sample mode and older deploys without drivers keep the sample detector card. */}
+            {prediction && <RiskSummary prediction={prediction} sample={sample} />}
+            {(!prediction || sample) && <DetectorPanel />}
             <p className="text-[13px] text-ink-soft">
               {t("operator.footnote", { limit: TURBIDITY_LIMIT_NTU, shut: TURBIDITY_SHUTOFF_NTU, cap: CLARIFIER_CAPACITY_LPS })}
             </p>

@@ -6,7 +6,7 @@ import { RankedChain, RankedChainBatch } from "../contracts/spec04";
 import { OfflineQueueItem } from "../contracts/spec05";
 import { AllocationDecision, DeployResponse, NotificationPayload } from "../contracts/spec06";
 import { DashboardSnapshot, DisruptionInfo } from "../contracts/spec07";
-import { PredictorOutput } from "../contracts/predictor";
+import { PredictorHistory, PredictorOutput } from "../contracts/predictor";
 import { asOfParam, callFn } from "./http";
 
 // ---------- Reads ----------
@@ -14,6 +14,10 @@ import { asOfParam, callFn } from "./http";
 /** Spec 02. GET disruption-predictor?as_of= */
 export const getPredictor = (asOf: Date, signal?: AbortSignal) =>
   callFn("disruption-predictor", { query: { as_of: asOfParam(asOf) }, schema: PredictorOutput, signal });
+
+/** Spec 02 history mode: hourly levels and scores for the `hours` up to asOf, in one call (the Predictions trend). */
+export const getPredictorHistory = (asOf: Date, hours: number, signal?: AbortSignal) =>
+  callFn("disruption-predictor", { query: { as_of: asOfParam(asOf), history_hours: hours }, schema: PredictorHistory, signal });
 
 /** Spec 03. One row per barangay (57). `disruptionId` pins a disruption; default is the newest open one. */
 export const getAffectedAreas = (asOf: Date, opts: { disruptionId?: string; minSignal?: number; signal?: AbortSignal } = {}) =>

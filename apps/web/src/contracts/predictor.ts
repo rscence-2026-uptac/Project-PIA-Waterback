@@ -37,3 +37,21 @@ export const PredictorOutput = z.object({
   operator_actions: z.array(OperatorAction).optional(),
 });
 export type PredictorOutput = z.infer<typeof PredictorOutput>;
+
+// History mode (`?history_hours=N`): hourly levels and scores, oldest first, ending at as_of. A score is
+// 50 + 10 × log-odds (lib/scorecard.ts); null for an hour where that model fell back to a WSP rule.
+export const PredictorHistoryHour = z.object({
+  as_of: z.string(),
+  signal_level: z.number().int().min(0).max(4),
+  turbidity_level: z.number().int().min(0).max(4),
+  drought_level: z.number().int().min(0).max(4),
+  fallback_used: z.boolean(),
+  score_turbidity: z.number().nullable(),
+  score_drought: z.number().nullable(),
+});
+export const PredictorHistory = z.object({
+  as_of: z.string(),
+  history_hours: z.number().int(),
+  hours: z.array(PredictorHistoryHour),
+});
+export type PredictorHistory = z.infer<typeof PredictorHistory>;

@@ -2,7 +2,7 @@
 """Generates supabase/seed/sources.sql (deterministic; re-run to regenerate).
 Usage: python3 -I supabase/seed/gen_sources.py > supabase/seed/sources.sql  (coverage table: --coverage)
 Row id = uuid5(NS, stable_key). Rubric/assumptions: docs/backup_sources.md."""
-import re, sys, uuid, math, pathlib
+import re, sys, uuid, math, pathlib, json
 root = pathlib.Path(__file__).resolve().parent
 NS = uuid.uuid5(uuid.NAMESPACE_DNS, "sources.pia-waterback")
 bar = {}
@@ -10,6 +10,9 @@ for m in re.finditer(r"\('([a-z0-9-]+)', '([^']*)', (?:'[^']*'|null), (null|[0-9
     bid, name, la, lo, lvl = m.groups()
     bar[bid] = dict(name=name, lat=None if la == "null" else float(la), lng=None if lo == "null" else float(lo), lvl=lvl)
 assert len(bar) == 57, len(bar)
+# simulated truck drop points (barangay_id -> lat/lng), same values as the trucking rows in apps/web/src/data/seedSources.ts
+drops = json.loads((root / "truck_drop_points.json").read_text())
+assert set(drops) == set(bar), set(bar) ^ set(drops)
 
 SAFETY = dict(refill=0.9, truck=0.8, neighbor=0.85, deepwell=0.7, untreated=0.4)
 REFILL_PRICE = 25  # PHP per 5-gal container, ESTIMATE (national range 25-35)
@@ -92,7 +95,7 @@ add("osm:jetmatic-well:payao", "payao", "Jet Matic (Artesian Well), operator Est
 SIM = "Simulated placeholder (docs/backup_sources.md rubric): "
 for b in bar:
     add(f"ph:truck:{b}", b, "LGU water truck drop point (simulated)", "trucking", SAFETY["truck"], TRUCK_MIN, 0, "placeholder",
-        SIM + "chlorinated LGU/BFP trucking 0.8, fixed 10 min to drop point, free; no real drop point list was found", True)
+        SIM + "chlorinated LGU/BFP trucking 0.8, fixed 10 min to drop point, free; no real drop point list was found", True, drops[b]["lat"], drops[b]["lng"])
     if bar[b]["lat"] is not None:
         cands = sorted(((hav(bar[b]["lat"], bar[b]["lng"], bar[c]["lat"], bar[c]["lng"]), c) for c in l3 if c != b))
         d, c = cands[0]

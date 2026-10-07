@@ -5,7 +5,7 @@ import "@fontsource-variable/bricolage-grotesque/wght.css";
 import "@fontsource/atkinson-hyperlegible/400.css";
 import "@fontsource/atkinson-hyperlegible/700.css";
 import "./index.css";
-import { DemoClockControl, DemoClockProvider } from "./demo/clock";
+import { DemoClockProvider } from "./demo/clock";
 import { startSync } from "./offline/sync";
 import { ResidentLayout } from "./screens/resident/ResidentLayout";
 import { StatusScreen } from "./screens/resident/StatusScreen";
@@ -19,6 +19,7 @@ import { useCopy } from "./copy/i18n";
 // Staff screens load on demand, so residents' phones don't download them.
 const CaptainScreen = lazy(() => import("./screens/captain/CaptainScreen").then((m) => ({ default: m.CaptainScreen })));
 const OperatorScreen = lazy(() => import("./screens/operator/OperatorScreen").then((m) => ({ default: m.OperatorScreen })));
+const RiskScreen = lazy(() => import("./screens/operator/RiskScreen").then((m) => ({ default: m.RiskScreen })));
 const LiveDashboardScreen = lazy(() => import("./screens/lgu/LiveDashboardScreen").then((m) => ({ default: m.LiveDashboardScreen })));
 const AllocationScreen = lazy(() => import("./screens/lgu/AllocationScreen").then((m) => ({ default: m.AllocationScreen })));
 const PlanScreen = lazy(() => import("./screens/lgu/PlanScreen").then((m) => ({ default: m.PlanScreen })));
@@ -54,6 +55,7 @@ const router = createBrowserRouter([
   },
   { path: "/captain", element: <Lazy><CaptainScreen /></Lazy> },
   { path: "/operator", element: <Lazy><OperatorScreen /></Lazy> },
+  { path: "/operator/risk", element: <Lazy><RiskScreen /></Lazy> },
   // LGU / CDRRMO screens are English only; residents and captains keep the language choice.
   { path: "/lgu", element: <FixedLanguage language="english"><Lazy><AllocationScreen /></Lazy></FixedLanguage> },
   { path: "/lgu/event", element: <FixedLanguage language="english"><Lazy><EventRecordScreen /></Lazy></FixedLanguage> },
@@ -71,7 +73,6 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <DemoClockProvider>
       <RouterProvider router={router} />
-      <DemoClockControl />
     </DemoClockProvider>
   </StrictMode>,
 );

@@ -35,9 +35,9 @@ const toSeed = (row: SourceRow): SeedSource => ({
   lng: row.lng ?? null,
 });
 
-const rankedToSeed = (r: RankedSource, row: SourceRow | undefined): SeedSource => ({
+const rankedToSeed = (r: RankedSource, row: SourceRow | undefined, barangayId: string): SeedSource => ({
   id: r.source_id,
-  barangay_id: row?.barangay_id ?? "",
+  barangay_id: row?.barangay_id ?? barangayId,
   name: r.name,
   type: r.type,
   safety_score: r.safety_score,
@@ -62,7 +62,7 @@ export async function loadSources(barangayId: string, disruption: DisruptionInfo
   ]);
   const byId = new Map((rows ?? []).map((r) => [r.id, r]));
   if (chain && chain.ranked_sources.length > 0) {
-    return [...chain.ranked_sources].sort((a, b) => a.rank - b.rank).map((r, i) => toBackupSource(rankedToSeed(r, byId.get(r.source_id)), i));
+    return [...chain.ranked_sources].sort((a, b) => a.rank - b.rank).map((r, i) => toBackupSource(rankedToSeed(r, byId.get(r.source_id), barangayId), i));
   }
   if (rows && rows.length > 0) return rankSeedSources(rows.map(toSeed), cause).map(toBackupSource);
   // Neither endpoint answered: the bundled copy of Dev A's seed (same ranking rule).

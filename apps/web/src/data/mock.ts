@@ -301,3 +301,53 @@ export const OPERATOR = {
     remind_at: fromNow(1.75),
   },
 };
+
+// MOCK: spec 02 predictor output for the same sample outage, so sample mode shows the plant-risk scorecard.
+// Contributions are weight × value from the real model coefficients (model.generated.ts, version 2026-10-06.3),
+// with inputs matching OPERATOR above (620 NTU at Kulador, 43 mm of rain in the 24 h series).
+export const OPERATOR_PREDICTION: PredictorOutput = {
+  scope: "system",
+  p_turbidity: 0.99997,
+  p_drought: 0.032,
+  signal_level: 4,
+  turbidity_level: 4,
+  drought_level: 0,
+  computed_at: fromNow(0),
+  fallback_used: false,
+  forecast_source: "live",
+  drivers: {
+    turbidity: [
+      { feature: "wsp_rule", text: "WSP rule (p.43): Caramayon I at 540 NTU, at or above 500 NTU, source shut-off forces level 4" },
+      { feature: "turbidity_ntu", text: "Kulador raw-water turbidity is 620 NTU now", value: 620, unit: "NTU", contribution: 5.5853, share: 0.418 },
+      { feature: "rain_24h_mm", text: "43 mm of rain fell in the last 24 h", value: 43, unit: "mm", contribution: 4.3007, share: 0.322 },
+      { feature: "forecast_rain_48h_mm", text: "14 mm of rain forecast in the next 48 h", value: 14, unit: "mm", contribution: 2.8339, share: 0.212 },
+      { feature: "rain_72h_mm", text: "55 mm of rain fell in the last 72 h", value: 55, unit: "mm", contribution: 0.6215, share: 0.047 },
+    ],
+    drought: [
+      { feature: "days_since_rain_over_5mm", text: "Rain of 5 mm or more fell today", value: 0, unit: "days", contribution: 0, share: 0 },
+      { feature: "rain_14d_mm", text: "160 mm of rain in the last 14 days", value: 160, unit: "mm", contribution: -1.5965, share: 0 },
+      { feature: "rain_30d_mm", text: "310 mm of rain in the last 30 days", value: 310, unit: "mm", contribution: -2.6896, share: 0 },
+      { feature: "reservoir_pct", text: "Reservoir at 58% of its 340 m3 usable capacity", value: 58, unit: "%", contribution: -3.3483, share: 0 },
+    ],
+    baseline: { turbidity: -3.0683, drought: 4.2376 },
+  },
+  operator_actions: [
+    { action: "Pre-dose PAC/polymer and caustic soda at Kulador before the turbidity peak arrives", source: "WSP p.44", when: "turbidity_level>=2" },
+    { action: "Make sure the 440 m3 reservoir (Brgy. 13) is topped up before intake turbidity rises", source: "WSP p.13", when: "turbidity_level>=2" },
+    { action: "Check fuel and readiness of the Caramayon standby generator and spare pumps", source: "WSP p.43", when: "turbidity_level>=2" },
+    { action: "Have filter bags ready to clean or replace, and keep pre- and post-chlorination running", source: "WSP p.44", when: "turbidity_level>=2" },
+    { action: "Turbidity already high at Kulador: take a turbidimeter reading now rather than waiting for the daily check", source: "PIA WaterBack recommendation", when: "turbidity_level>=2; top driver turbidity_ntu" },
+    { action: "If Caramayon I reads 500 NTU or above: temporary shut-off of that source", source: "WSP p.43", when: "turbidity_level>=4" },
+  ],
+};
+
+// MOCK: hourly plant-risk scores for the 48 h up to now, for the Predictions trend chart (sample mode only).
+// Synthetic but model-consistent: hourly inputs built from OPERATOR's series (river steady and dry, then the
+// 43 mm storm and the turbidity spike; reservoir falling ~4 points an hour since the outage; a forecast that firms
+// up as the rain nears: full weight within 12 h, ~10% at 42 h+), each run through the real coefficients
+// (model.generated.ts, 2026-10-06.3) as score = 50 + 10 × log-odds. The last point is OPERATOR_PREDICTION (153 / 16).
+export const OPERATOR_RISK_HISTORY = {
+  end: fromNow(0),
+  turbidity: [37, 40, 42, 45, 48, 50, 53, 55, 58, 60, 63, 66, 68, 71, 74, 76, 80, 83, 86, 89, 93, 96, 100, 103, 107, 110, 113, 117, 120, 122, 124, 125, 126, 127, 128, 129, 130, 131, 131, 131, 129, 134, 140, 148, 153, 155, 155, 154, 153],
+  drought: [13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 10, 8, 6, 4, 5, 7, 9, 11, 14, 16],
+};
